@@ -4,6 +4,48 @@ This comprehensive guide breaks down the ordered, sequential deployment of the E
 
 ---
 
+## Step 0: The Prerequisite - Terraform State Bootstrap (Bootstrap Module)
+
+Before executing the core infrastructure code, we need a reliable, collaborative, and secure storage solution for the Terraform state file (`terraform.tfstate`). Local state files are prone to loss, drift, and accidental exposure of sensitive infrastructure data.
+
+### Detailed Actions:
+1. **S3 Bucket Creation**: A dedicated S3 Bucket is provisioned specifically for the `.tfstate` file.
+   - **Versioning Enabled**: Protects against accidental state file overwrites or corruption by maintaining a log of all versions.
+   - **AES256 Encryption**: Secures the state file at rest.
+   - **Public Access Blocked**: Prevents the S3 Bucket from ever having public, explicit ACL access.
+2. **DynamoDB State Locking Table**: A DynamoDB table (`PAY_PER_REQUEST` billing mode) is created. 
+   - Uses `LockID` as a partition key.
+   - Ensures that only one team member or CI/CD pipeline runs `terraform apply` concurrently.
+3. **Lifecycle Prevention**: Both the Bucket and DynamoDB table utilize Terraform's `prevent_destroy` meta-argument, effectively preventing accidental deletion commands.
+
+```mermaid
+graph TD
+    classDef tf fill:#844FBA,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef aws fill:#232F3E,stroke:#fff,stroke-width:2px,color:#fff;
+
+    Admin(("Dev/CI Pipeline")) -- "Runs terraform apply" --> TF_Process["Terraform Execution Process"]
+    
+    subgraph AWS_Backend ["AWS Backend (Bootstrap Module)"]
+        S3[("S3 Bucket<br/>(State Storage)")]
+        DB[("DynamoDB Table<br/>(State Lock)")]
+    end
+    
+    TF_Process -- "1. Acquires Lock" --> DB
+    TF_Process -- "2. Reads/Writes State" --> S3
+    DB -- "3. Releases Lock" -.-> TF_Process
+    
+    %% Security Policies
+    subgraph Security_Perimeter ["Data Protection"]
+        Encrypt["AES-256 Encryption"] -.-> S3
+        Version["Bucket Versioning"] -.-> S3
+    end
+
+    class TF_Process tf;
+    class S3,DB,Encrypt,Version aws;
+```
+
+---
+
 ## Step 1: The Foundation - Isolated Networking (VPC Module)
 
 Before any compute resources can be provisioned, we must establish the network boundary. The **Virtual Private Cloud (VPC)** acts as your private data center in the cloud.
@@ -299,8 +341,11 @@ flowchart TD
     classDef init fill:#248814,stroke:#fff,stroke-width:2px,color:#fff;
     classDef core fill:#DD344C,stroke:#fff,stroke-width:2px,color:#fff;
     classDef dep fill:#F58536,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef boot fill:#844FBA,stroke:#fff,stroke-width:2px,color:#fff;
 
-    VPC[1. VPC Networking & Routing] --> SG[Security Groups]
+    BOOT[0. Bootstrap S3 & DynamoDB] --> VPC[1. VPC Networking & Routing]
+    
+    VPC --> SG[Security Groups]
     VPC --> IGW[Internet & NAT Gateways]
     
     IGW --> SEC[2. GuardDuty & Config Rules]
@@ -319,6 +364,7 @@ flowchart TD
     
     EKS --> SM[6. AWS Secrets Manager & Read Policies]
 
+    class BOOT boot;
     class VPC,IGW,SEC init;
     class SG,IAM,EKS core;
     class OIDC,LT,NODES,ADDONS,SM dep;
