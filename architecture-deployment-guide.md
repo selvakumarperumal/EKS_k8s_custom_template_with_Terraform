@@ -73,23 +73,23 @@ graph LR
     classDef analyze fill:#8C4FFF,stroke:#fff,stroke-width:2px,color:#fff;
     classDef alert fill:#DC3147,stroke:#fff,stroke-width:2px,color:#fff;
 
-    subgraph Data_Sources [Telemetry & Data Sources]
-        VPCFlow[VPC Flow Logs]
-        K8sAudit[Kubernetes Audit Logs]
-        CloudTrail[AWS CloudTrail]
-        OSRuntime[Node OS Events]
+    subgraph Data_Sources ["Telemetry & Data Sources"]
+        VPCFlow["VPC Flow Logs"]
+        K8sAudit["Kubernetes Audit Logs"]
+        CloudTrail["AWS CloudTrail"]
+        OSRuntime["Node OS Events"]
     end
 
-    subgraph Threat_Detection [Threat Detection & Compliance]
-        GD[Amazon GuardDuty<br/>(Machine Learning & Threat Intel)]
-        Config[AWS Config<br/>(Continuous Auditing)]
+    subgraph Threat_Detection ["Threat Detection & Compliance"]
+        GD["Amazon GuardDuty<br/>(Machine Learning & Threat Intel)"]
+        Config["AWS Config<br/>(Continuous Auditing)"]
     end
 
     Data_Sources --> GD
-    GD --> Alerts((Security Finding))
+    GD --> Alerts(("Security Finding"))
     
     K8sAudit -.-> Config
-    Config --> Compliance((Compliance <br/> Pass/Fail))
+    Config --> Compliance(("Compliance<br/>Pass/Fail"))
 
     class VPCFlow,K8sAudit,CloudTrail,OSRuntime src;
     class GD,Config analyze;
@@ -114,19 +114,19 @@ graph TD
     classDef role fill:#DD344C,stroke:#fff,stroke-width:2px,color:#fff;
     classDef policy fill:#E78F24,stroke:#fff,stroke-width:2px,color:#fff;
 
-    subgraph AWS_IAM [Identity & Access Management]
-        subgraph Roles
-            CRole[Cluster Role <br/> (Trusts: eks.amazonaws.com)]
-            NRole[Node Group Role <br/> (Trusts: ec2.amazonaws.com)]
+    subgraph AWS_IAM ["Identity & Access Management"]
+        subgraph Roles ["Roles"]
+            CRole["Cluster Role<br/>(Trusts: eks.amazonaws.com)"]
+            NRole["Node Group Role<br/>(Trusts: ec2.amazonaws.com)"]
         end
         
-        subgraph Managed_Policies [AWS Managed Policies]
-            pCluster[AmazonEKSClusterPolicy]
-            pVPC[AmazonEKSVPCResourceController]
+        subgraph Managed_Policies ["AWS Managed Policies"]
+            pCluster["AmazonEKSClusterPolicy"]
+            pVPC["AmazonEKSVPCResourceController"]
             
-            pNode[AmazonEKSWorkerNodePolicy]
-            pCNI[AmazonEKS_CNI_Policy]
-            pECR[AmazonEC2ContainerRegistryReadOnly]
+            pNode["AmazonEKSWorkerNodePolicy"]
+            pCNI["AmazonEKS_CNI_Policy"]
+            pECR["AmazonEC2ContainerRegistryReadOnly"]
         end
         
         pCluster --> CRole
@@ -137,8 +137,8 @@ graph TD
         pECR --> NRole
     end
     
-    EKS_Service((EKS Service)) -- Assumes --> CRole
-    Worker_Node((EC2 Instance)) -- Assumes --> NRole
+    EKS_Service(("EKS Service")) -- Assumes --> CRole
+    Worker_Node(("EC2 Instance")) -- Assumes --> NRole
 
     class CRole,NRole role;
     class pCluster,pVPC,pNode,pCNI,pECR policy;
@@ -165,25 +165,25 @@ graph TD
     classDef control fill:#F58536,stroke:#fff,stroke-width:2px,color:#fff;
     classDef sec fill:#DC3147,stroke:#fff,stroke-width:2px,color:#fff;
 
-    Admin((Cluster Admin)) --> |kubectl| APIServer
+    Admin(("Cluster Admin")) --> |kubectl| APIServer
     
-    subgraph EKS_Managed_Control_Plane [EKS Control Plane - AWS Managed]
-        APIServer[API Server]
-        Controller[Controller Mgr]
-        Scheduler[Scheduler]
-        ETCD[(etcd Database)]
+    subgraph EKS_Managed_Control_Plane ["EKS Control Plane - AWS Managed"]
+        APIServer["API Server"]
+        Controller["Controller Mgr"]
+        Scheduler["Scheduler"]
+        ETCD[("etcd Database")]
         
         APIServer <--> Controller & Scheduler & ETCD
     end
     
-    subgraph Security_Perimeter [Security Integrations]
-        KMS[KMS Custom Key] -. "Envelope Encryption" .-> ETCD
-        CloudWatch[CloudWatch Logs] <-. "Audit/API Logs" .- APIServer
-        OIDC[OIDC Identity Provider] -. "Pod Authentication (IRSA)" .-> APIServer
+    subgraph Security_Perimeter ["Security Integrations"]
+        KMS["KMS Custom Key"] -. "Envelope Encryption" .-> ETCD
+        CloudWatch["CloudWatch Logs"] <-. "Audit/API Logs" .- APIServer
+        OIDC["OIDC Identity Provider"] -. "Pod Authentication (IRSA)" .-> APIServer
     end
     
     %% SG Boundary
-    subgraph Control_Plane_SG [Control Plane Security Group]
+    subgraph Control_Plane_SG ["Control Plane Security Group"]
         APIServer
     end
 
@@ -212,27 +212,27 @@ graph TD
     classDef node fill:#145E88,stroke:#fff,stroke-width:2px,color:#fff;
     classDef addon fill:#D86613,stroke:#fff,stroke-width:2px,color:#fff;
 
-    APIServer((EKS API Server)) <== "HTTPS / Port 443" ==> Kubelet
+    APIServer(("EKS API Server")) <== "HTTPS / Port 443" ==> Kubelet
 
-    subgraph Launch_Template [Secure Launch Template]
-        IMDSv2[IMDSv2 Enforced]
-        EBS[GP3 Encrypted Storage]
+    subgraph Launch_Template ["Secure Launch Template"]
+        IMDSv2["IMDSv2 Enforced"]
+        EBS["GP3 Encrypted Storage"]
     end
 
     Launch_Template -.-> NodeGroup
 
-    subgraph NodeGroup [Managed Node Group - Private Subnets]
-        subgraph EC2_Worker_Node [EC2 Instance]
-            Kubelet[Kubelet Service]
+    subgraph NodeGroup ["Managed Node Group - Private Subnets"]
+        subgraph EC2_Worker_Node ["EC2 Instance"]
+            Kubelet["Kubelet Service"]
             
-            subgraph Essential_Addons [AWS Managed Add-ons]
-                CNI[VPC CNI Plugin]
-                KProxy[kube-proxy]
-                DNS[CoreDNS]
+            subgraph Essential_Addons ["AWS Managed Add-ons"]
+                CNI["VPC CNI Plugin"]
+                KProxy["kube-proxy"]
+                DNS["CoreDNS"]
             end
             
-            PodA((Application Pod A))
-            PodB((Application Pod B))
+            PodA(("Application Pod A"))
+            PodB(("Application Pod B"))
             
             CNI -. "Native VPC IPs" .-> PodA & PodB
             KProxy -. "Service Routing" .-> PodA & PodB
@@ -261,23 +261,23 @@ graph LR
     classDef k8s fill:#326CE5,stroke:#fff,stroke-width:2px,color:#fff;
     classDef awsSec fill:#DC3147,stroke:#fff,stroke-width:2px,color:#fff;
 
-    subgraph EKS_Cluster [EKS Worker Node]
-        AppPod((Application Pod))
-        SA[ServiceAccount <br/> annotated with IAM Role]
+    subgraph EKS_Cluster ["EKS Worker Node"]
+        AppPod(("Application Pod"))
+        SA["ServiceAccount<br/>annotated with IAM Role"]
         AppPod --> |uses| SA
     end
 
-    subgraph AWS_IAM_Boundary [AWS IAM]
-        IRSA_Role[IAM Role for App]
-        ReadPolicy[Least Privilege <br/> Read Policy]
+    subgraph AWS_IAM_Boundary ["AWS IAM"]
+        IRSA_Role["IAM Role for App"]
+        ReadPolicy["Least Privilege<br/>Read Policy"]
         SA -. "Trust Relationship" .-> IRSA_Role
         ReadPolicy -. "Attached" .-> IRSA_Role
     end
 
-    subgraph AWS_Secrets_Manager [AWS Secrets Manager]
-        DB_Secret[(Encrypted DB <br/> Credentials)]
-        API_Secret[(Encrypted API <br/> Keys)]
-        CustomKMS[Dedicated Secrets <br/> KMS Key]
+    subgraph AWS_Secrets_Manager ["AWS Secrets Manager"]
+        DB_Secret[("Encrypted DB<br/>Credentials")]
+        API_Secret[("Encrypted API<br/>Keys")]
+        CustomKMS["Dedicated Secrets<br/>KMS Key"]
         
         CustomKMS -. "Decrypts" .-> DB_Secret & API_Secret
     end
