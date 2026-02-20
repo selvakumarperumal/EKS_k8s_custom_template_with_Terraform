@@ -160,7 +160,18 @@ graph LR
 ├── variables.tf                # Root input variables (with validation)
 ├── main.tf                     # Module orchestration
 ├── outputs.tf                  # Root outputs
-├── terraform.tfvars            # Example variable values
+├── terraform.tfvars            # Base variable values
+│
+├── environments/               # Environment specific configurations
+│   ├── dev.tfvars              # Cost optimized dev parameters (Spot instances)
+│   └── prod.tfvars             # HA production parameters (On-Demand, 3x NAT)
+│
+├── bootstrap/                  # Remote State management
+│   ├── main.tf                 # S3 (Versioning + Encryption) & DynamoDB tables
+│   └── README.md               # Bootstrap sequence instructions
+│
+├── .github/workflows/          # CI/CD Pipelines
+│   └── terraform-eks.yml       # Manual Terraform trigger (pick dev/prod)
 │
 ├── modules/
 │   ├── vpc/                    # Network infrastructure
@@ -218,40 +229,64 @@ The deploying user/role needs these AWS managed policies (at minimum):
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick Start (Local vs. GitHub Actions)
+
+### 🥇 Method 1: Using the provided GitHub Action (Recommended)
+
+1. **Bootstrap the Backend**: 
+   Navigate to the `bootstrap/` folder and run `terraform init` and `terraform apply` locally once to create your S3 bucket and DynamoDB locking table.
+2. **Configure GitHub Secrets**:
+   Go to your repository **Settings** -> **Secrets and variables** -> **Actions** and add `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+3. **Run the Action**:
+   Go to the **Actions** tab in GitHub, select **Deploy EKS Cluster**, click **Run workflow**, choose your environment (`dev` or `prod`), and select the `apply` action.
+
+### 🥈 Method 2: Running Locally
 
 ```bash
 # 1. Clone and enter the directory
 cd EKS_k8s_custom_template_with_Terraform
 
-# 2. Configure AWS credentials
+# 2. Bootstrap remote state (Do this first!)
+cd bootstrap/
+terraform init && terraform apply
+cd ..
+
+# 3. Configure AWS credentials
 aws configure
 # Or use environment variables:
 # export AWS_ACCESS_KEY_ID="..."
 # export AWS_SECRET_ACCESS_KEY="..."
-# export AWS_DEFAULT_REGION="us-east-1"
+# export AWS_DEFAULT_REGION="ap-south-1"
 
-# 3. Review and customize variables
-vim terraform.tfvars
-
-# 4. Initialize Terraform (downloads providers & modules)
+# 4. Initialize Terraform
 terraform init
 
-# 5. Preview changes (dry run)
-terraform plan
+# 5. Preview changes for your chosen environment (e.g. dev)
+terraform plan -var-file="environments/dev.tfvars"
 
 # 6. Apply the configuration
-terraform apply
+terraform apply -var-file="environments/dev.tfvars"
 
 # 7. Configure kubectl
-aws eks update-kubeconfig \
-  --region us-east-1 \
-  --name eks-secure-cluster
+aws eks update-kubeconfig --region ap-south-1 --name eks-dev-cluster
 
 # 8. Verify cluster access
 kubectl get nodes
 kubectl get pods -A
 ```
+
+---
+
+## 🌍 Environment Configurations (`dev` vs `prod`)
+
+This project cleanly separates environments using `.tfvars` files located in the `environments/` directory.
+
+- **`environments/dev.tfvars`**: 
+  - **Cost-Optimized**: Uses only 1 NAT Gateway, disables expensive GuardDuty/VPC logging, and utilizes cheaper `t3.medium` **SPOT** instances.
+- **`environments/prod.tfvars`**: 
+  - **Highly Available**: Uses NAT Gateways in every AZ.
+  - **Secure**: Enables GuardDuty, AWS Config, and CloudWatch Control Plane logging.
+  - **Stable**: Provisions `m5.large` instances strictly as **ON_DEMAND** capacity.
 
 ---
 
