@@ -253,10 +253,10 @@ The cluster brain needs muscle. We deploy EC2 instances and the critical softwar
 
 ```mermaid
 graph TD
-    classDef node fill:#145E88,stroke:#fff,stroke-width:2px,color:#fff;
-    classDef addon fill:#D86613,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef workerStyle fill:#145E88,stroke:#fff,stroke-width:2px,color:#fff;
+    classDef addonStyle fill:#D86613,stroke:#fff,stroke-width:2px,color:#fff;
 
-    APIServer(("EKS API Server")) <== "HTTPS / Port 443" ==> Kubelet
+    APIServer(("EKS API Server")) -- "HTTPS / Port 443" --> Kubelet
 
     subgraph Launch_Template ["Secure Launch Template"]
         IMDSv2["IMDSv2 Enforced"]
@@ -287,8 +287,8 @@ graph TD
         end
     end
 
-    class EC2_Worker_Node,Kubelet,PodA,PodB node;
-    class CNI,KProxy,DNS addon;
+    class EC2_Worker_Node,Kubelet,PodA,PodB workerStyle;
+    class CNI,KProxy,DNS addonStyle;
 ```
 
 ---

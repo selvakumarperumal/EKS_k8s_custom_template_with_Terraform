@@ -8,35 +8,35 @@ This module provisions the foundational networking infrastructure for the EKS cl
 
 ```mermaid
 graph TD
-    classDef pub fill:#248814,stroke:#fff,stroke-width:2px,color:#fff
-    classDef priv fill:#145E88,stroke:#fff,stroke-width:2px,color:#fff
-    classDef gw fill:#D86613,stroke:#fff,stroke-width:2px,color:#fff
-    classDef sec fill:#8C4FFF,stroke:#fff,stroke-width:2px,color:#fff
+    classDef pubStyle fill:#248814,stroke:#fff,stroke-width:2px,color:#fff
+    classDef privStyle fill:#145E88,stroke:#fff,stroke-width:2px,color:#fff
+    classDef gwStyle fill:#D86613,stroke:#fff,stroke-width:2px,color:#fff
+    classDef secStyle fill:#8C4FFF,stroke:#fff,stroke-width:2px,color:#fff
 
-    Internet((Internet))
+    Internet(("Internet"))
 
-    subgraph VPC ["VPC (10.0.0.0/16)"]
+    subgraph VPC ["VPC - 10.0.0.0/16"]
         IGW["Internet Gateway"]
 
         subgraph PublicSubnets ["Public Subnets"]
-            PubA["10.0.101.0/24<br/>AZ-A"]
-            PubB["10.0.102.0/24<br/>AZ-B"]
-            PubC["10.0.103.0/24<br/>AZ-C"]
+            PubA["10.0.101.0/24 AZ-A"]
+            PubB["10.0.102.0/24 AZ-B"]
+            PubC["10.0.103.0/24 AZ-C"]
         end
 
         NAT["NAT Gateway + Elastic IP"]
 
         subgraph PrivateSubnets ["Private Subnets"]
-            PrivA["10.0.1.0/24<br/>AZ-A"]
-            PrivB["10.0.2.0/24<br/>AZ-B"]
-            PrivC["10.0.3.0/24<br/>AZ-C"]
+            PrivA["10.0.1.0/24 AZ-A"]
+            PrivB["10.0.2.0/24 AZ-B"]
+            PrivC["10.0.3.0/24 AZ-C"]
         end
 
         NACL_Pub["NACL - Public"]
         NACL_Priv["NACL - Private"]
     end
 
-    FlowLogs["VPC Flow Logs<br/>to CloudWatch"]
+    FlowLogs["VPC Flow Logs to CloudWatch"]
 
     Internet <--> IGW
     IGW <--> PublicSubnets
@@ -47,10 +47,10 @@ graph TD
     NACL_Priv -.- PrivateSubnets
     VPC -.-> FlowLogs
 
-    class PubA,PubB,PubC pub
-    class PrivA,PrivB,PrivC priv
-    class IGW,NAT gw
-    class NACL_Pub,NACL_Priv,FlowLogs sec
+    class PubA,PubB,PubC pubStyle
+    class PrivA,PrivB,PrivC privStyle
+    class IGW,NAT gwStyle
+    class NACL_Pub,NACL_Priv,FlowLogs secStyle
 ```
 
 ---
@@ -72,51 +72,60 @@ graph TD
 
 ---
 
-## How Traffic Flows
+## Detailed Resource Walkthrough
 
-```mermaid
-sequenceDiagram
-    participant User as User / Internet
-    participant IGW as Internet Gateway
-    participant ALB as ALB in Public Subnet
-    participant NAT as NAT Gateway
-    participant Node as Worker Node in Private Subnet
-    participant ECR as ECR / Internet
+### 1. VPC
 
-    User->>IGW: Incoming HTTP request
-    IGW->>ALB: Route to public subnet
-    ALB->>Node: Forward to pod (private subnet)
+The isolated private network where everything lives.
 
-    Note over Node,ECR: Outbound traffic (e.g. pulling image)
-    Node->>NAT: Request to pull image
-    NAT->>IGW: Forward via public subnet
-    IGW->>ECR: Reach ECR / internet
-    ECR-->>Node: Image pulled via NAT
+```hcl
+resource "aws_vpc" "main" {
+  cidr_block           = var.vpc_cidr   # e.g., "10.0.0.0/16" — 65,536 IPs
+  enable_dns_hostnames = true           # Required for EKS
+  enable_dns_support   = true           # Required for EKS
+
+  tags = merge(var.tags, {
+    Name = "${var.name_prefix}-vpc"
+  })
+}
 ```
+
+**Why DNS is enabled**: EKS requires DNS hostnames and support for nodes to resolve the cluster API endpoint and communicate with the control plane.
 
 ---
 
-## Key Design Decisions
+### 2. Public and Private Subnets
 
-### Why Public + Private Subnets?
-- **Private subnets** hide worker nodes from the internet. They have no public IPs and no direct inbound route. This is the #1 security best practice for EKS nodes.
-- **Public subnets** exist only for resources that *must* face the internet: load balancers and the NAT Gateway.
+Subnets are spread across 3 Availability Zones for high availability.
 
-### Why NAT Gateway?
-Pods running in private subnets still need outbound internet to:
-- Pull container images from ECR or Docker Hub.
-- Communicate with external APIs and AWS services.
+```hcl
+# Public subnets — for ALBs and NAT Gateway
+resource "aws_subnet" "public" {
+  count                   = length(var.public_subnets)     # 3 subnets
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnets[count.index] # "10.0.101.0/24"
+  availability_zone       = var.azs[count.index]            # "ap-south-1a"
+  map_public_ip_on_launch = true                            # Auto-assign public IPs
 
-The NAT Gateway provides this outbound access without exposing nodes to inbound traffic.
+  tags = merge(var.tags, var.public_subnet_tags, {
+    Name = "${var.name_prefix}-public-${var.azs[count.index]}"
+  })
+}
 
-### Single vs. Multi-AZ NAT
-| Mode | `single_nat_gateway` | NAT Count | Cost | Use Case |
-|------|---------------------|-----------|------|----------|
-| **Single** | `true` | 1 | ~$33/mo | Dev/Test |
-| **Multi-AZ** | `false` | 3 (one per AZ) | ~$100/mo | Production HA |
+# Private subnets — for EKS worker nodes (no public IPs)
+resource "aws_subnet" "private" {
+  count             = length(var.private_subnets)
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_subnets[count.index]
+  availability_zone = var.azs[count.index]
 
-### Subnet Tagging for EKS
-These tags are **functional**, not just labels. The AWS Load Balancer Controller reads them to discover where to place load balancers:
+  tags = merge(var.tags, var.private_subnet_tags, {
+    Name = "${var.name_prefix}-private-${var.azs[count.index]}"
+  })
+}
+```
+
+**Subnet Tagging for EKS** — These tags are functional, not just labels:
 
 | Tag | Subnet Type | Meaning |
 |-----|------------|---------|
@@ -124,11 +133,121 @@ These tags are **functional**, not just labels. The AWS Load Balancer Controller
 | `kubernetes.io/role/internal-elb = 1` | Private | Place internal NLBs here |
 | `kubernetes.io/cluster/<name> = shared` | Both | This subnet belongs to the cluster |
 
-### Network ACLs (NACLs)
-NACLs provide a **stateless** firewall at the subnet boundary. Unlike Security Groups (stateful), NACLs evaluate both inbound and outbound rules independently. They act as a secondary defense layer in case Security Group rules are misconfigured.
+---
 
-### VPC Flow Logs (Optional)
-When enabled, captures metadata about all network traffic (source/dest IPs, ports, accept/reject) to CloudWatch. Useful for:
-- Forensic investigation after a security incident.
-- Detecting unusual traffic patterns (e.g., data exfiltration).
-- Compliance auditing (PCI-DSS, SOC2).
+### 3. NAT Gateway
+
+Allows private subnets to access the internet for pulling container images, without exposing nodes to inbound traffic.
+
+```hcl
+resource "aws_eip" "nat" {
+  count  = var.enable_nat_gateway ? (var.single_nat_gateway ? 1 : length(var.public_subnets)) : 0
+  domain = "vpc"
+  depends_on = [aws_internet_gateway.main]
+}
+
+resource "aws_nat_gateway" "main" {
+  count         = var.enable_nat_gateway ? (var.single_nat_gateway ? 1 : length(var.public_subnets)) : 0
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id
+  depends_on    = [aws_internet_gateway.main]
+}
+```
+
+| Mode | `single_nat_gateway` | NAT Count | Cost | Use Case |
+|------|---------------------|-----------|------|----------|
+| **Single** | `true` | 1 | ~$33/mo | Dev/Test |
+| **Multi-AZ** | `false` | 3 (one per AZ) | ~$100/mo | Production HA |
+
+---
+
+### 4. Route Tables
+
+```hcl
+# Public route table — routes to Internet Gateway
+resource "aws_route" "public_internet_gateway" {
+  route_table_id         = aws_route_table.public.id
+  destination_cidr_block = "0.0.0.0/0"              # All internet traffic
+  gateway_id             = aws_internet_gateway.main.id
+}
+
+# Private route table — routes to NAT Gateway
+resource "aws_route" "private_nat_gateway" {
+  count                  = var.enable_nat_gateway ? (var.single_nat_gateway ? 1 : length(var.private_subnets)) : 0
+  route_table_id         = aws_route_table.private[count.index].id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.main[count.index].id
+}
+```
+
+---
+
+### 5. Network ACLs
+
+NACLs provide a **stateless** firewall at the subnet boundary — a secondary defense layer in case Security Group rules are misconfigured.
+
+```hcl
+resource "aws_network_acl" "private" {
+  vpc_id     = aws_vpc.main.id
+  subnet_ids = aws_subnet.private[*].id
+
+  ingress {
+    rule_no    = 100
+    protocol   = "tcp"
+    action     = "allow"
+    cidr_block = var.vpc_cidr    # Allow traffic from within VPC
+    from_port  = 0
+    to_port    = 65535
+  }
+
+  egress {
+    rule_no    = 100
+    protocol   = "-1"            # All protocols
+    action     = "allow"
+    cidr_block = "0.0.0.0/0"    # Allow all outbound
+    from_port  = 0
+    to_port    = 0
+  }
+}
+```
+
+---
+
+### 6. VPC Flow Logs (Optional)
+
+When enabled, captures metadata about all network traffic for security auditing.
+
+```hcl
+resource "aws_flow_log" "main" {
+  count                = var.enable_flow_logs ? 1 : 0
+  vpc_id               = aws_vpc.main.id
+  traffic_type         = "ALL"
+  iam_role_arn         = aws_iam_role.flow_log[0].arn
+  log_destination      = aws_cloudwatch_log_group.flow_log[0].arn
+  log_destination_type = "cloud-watch-logs"
+}
+```
+
+---
+
+## Traffic Flow
+
+```mermaid
+sequenceDiagram
+    participant User as User / Internet
+    participant IGW as Internet Gateway
+    participant ALB as ALB in Public Subnet
+    participant NAT as NAT Gateway
+    participant Worker as Worker Node in Private Subnet
+    participant ECR as ECR / Internet
+
+    User->>IGW: Incoming HTTP request
+    IGW->>ALB: Route to public subnet
+    ALB->>Worker: Forward to pod in private subnet
+
+    Note over Worker,ECR: Outbound traffic
+    Worker->>NAT: Pull container image
+    NAT->>IGW: Forward via public subnet
+    IGW->>ECR: Reach ECR / internet
+    ECR-->>Worker: Image pulled via NAT
+```

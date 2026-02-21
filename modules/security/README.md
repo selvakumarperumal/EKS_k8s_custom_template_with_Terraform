@@ -8,9 +8,9 @@ This module enables continuous threat detection and configuration compliance mon
 
 ```mermaid
 graph TD
-    classDef source fill:#F58536,stroke:#fff,stroke-width:2px,color:#fff
-    classDef detect fill:#8C4FFF,stroke:#fff,stroke-width:2px,color:#fff
-    classDef output fill:#DC3147,stroke:#fff,stroke-width:2px,color:#fff
+    classDef sourceStyle fill:#F58536,stroke:#fff,stroke-width:2px,color:#fff
+    classDef detectStyle fill:#8C4FFF,stroke:#fff,stroke-width:2px,color:#fff
+    classDef outputStyle fill:#DC3147,stroke:#fff,stroke-width:2px,color:#fff
 
     subgraph Data_Sources ["Data Sources Analyzed"]
         VPCFlow["VPC Flow Logs"]
@@ -26,22 +26,12 @@ graph TD
         Anomaly["Anomaly Detection"]
     end
 
-    subgraph GuardDuty_Features ["GuardDuty Feature Flags"]
-        EKS_Audit["EKS Audit Log Monitoring"]
-        EKS_Runtime["EKS Runtime Monitoring"]
-        Malware["Malware Protection for EC2"]
-    end
-
     Data_Sources --> GuardDuty_Engine
-    GuardDuty_Engine --> Findings((Security Findings))
+    GuardDuty_Engine --> Findings(("Security Findings"))
 
-    EKS_Audit -.-> GuardDuty_Engine
-    EKS_Runtime -.-> GuardDuty_Engine
-    Malware -.-> GuardDuty_Engine
-
-    class VPCFlow,K8sAudit,CloudTrail,DNS,Runtime source
-    class GuardDuty_Engine,ML,ThreatIntel,Anomaly detect
-    class Findings output
+    class VPCFlow,K8sAudit,CloudTrail,DNS,Runtime sourceStyle
+    class GuardDuty_Engine,ML,ThreatIntel,Anomaly detectStyle
+    class Findings outputStyle
 ```
 
 ---
@@ -60,11 +50,36 @@ graph TD
 
 ---
 
-## Threat Detection (GuardDuty)
+## Detailed Resource Walkthrough
 
-GuardDuty uses machine learning and AWS threat intelligence to detect threats in real time.
+### 1. Amazon GuardDuty
 
-### What It Detects
+Intelligent threat detection that analyzes metadata to identify suspicious activity.
+
+```hcl
+resource "aws_guardduty_detector" "main" {
+  count  = var.enable_guardduty ? 1 : 0
+  enable = true
+
+  datasources {
+    kubernetes {
+      audit_logs {
+        enable = true   # Monitor K8s API calls
+      }
+    }
+
+    malware_protection {
+      scan_ec2_instance_with_findings {
+        ebs_volumes {
+          enable = true   # Scan EBS when a threat is found
+        }
+      }
+    }
+  }
+}
+```
+
+**What it detects:**
 
 | Threat Category | Example Findings |
 |----------------|-----------------|
@@ -77,32 +92,70 @@ GuardDuty uses machine learning and AWS threat intelligence to detect threats in
 
 ---
 
-## Compliance Monitoring (AWS Config)
+### 2. AWS Config and Compliance Rules
+
+Continuously records resource configurations and evaluates them against best practices.
+
+```hcl
+resource "aws_config_configuration_recorder" "main" {
+  count    = var.enable_config ? 1 : 0
+  name     = "${var.cluster_name}-recorder"
+  role_arn = aws_iam_role.config[0].arn
+
+  recording_group {
+    all_supported = true
+  }
+}
+
+# Rule: EKS Cluster Logging must be enabled
+resource "aws_config_config_rule" "eks_logging" {
+  count = var.enable_config ? 1 : 0
+  name  = "${var.cluster_name}-eks-logging-enabled"
+
+  source {
+    owner             = "AWS"
+    source_identifier = "EKS_CLUSTER_LOGGING_ENABLED"
+  }
+}
+
+# Rule: EKS endpoint should not be publicly accessible
+resource "aws_config_config_rule" "eks_endpoint" {
+  count = var.enable_config ? 1 : 0
+  name  = "${var.cluster_name}-eks-no-public-endpoint"
+
+  source {
+    owner             = "AWS"
+    source_identifier = "EKS_ENDPOINT_NO_PUBLIC_ACCESS"
+  }
+}
+
+# Rule: EKS secrets must be encrypted
+resource "aws_config_config_rule" "eks_secrets" {
+  count = var.enable_config ? 1 : 0
+  name  = "${var.cluster_name}-eks-secrets-encrypted"
+
+  source {
+    owner             = "AWS"
+    source_identifier = "EKS_SECRETS_ENCRYPTED"
+  }
+}
+```
+
+### Compliance Rule Results
 
 ```mermaid
 graph LR
-    classDef rule fill:#145E88,stroke:#fff,stroke-width:2px,color:#fff
-    classDef pass fill:#248814,stroke:#fff,stroke-width:2px,color:#fff
-    classDef fail fill:#DC3147,stroke:#fff,stroke-width:2px,color:#fff
+    classDef ruleStyle fill:#145E88,stroke:#fff,stroke-width:2px,color:#fff
+    classDef passStyle fill:#248814,stroke:#fff,stroke-width:2px,color:#fff
+    classDef failStyle fill:#DC3147,stroke:#fff,stroke-width:2px,color:#fff
 
-    subgraph Config_Rules ["AWS Config Rules"]
-        R1["eks-cluster-logging-enabled"]
-        R2["eks-endpoint-no-public-access"]
-        R3["eks-secrets-encrypted"]
-    end
+    R1["eks-cluster-logging-enabled"] --> Pass1(("COMPLIANT"))
+    R2["eks-endpoint-no-public-access"] --> Fail2(("NON-COMPLIANT"))
+    R3["eks-secrets-encrypted"] --> Pass3(("COMPLIANT"))
 
-    R1 --> |Logging ON| Pass1(("COMPLIANT"))
-    R1 --> |Logging OFF| Fail1(("NON-COMPLIANT"))
-
-    R2 --> |Private only| Pass2(("COMPLIANT"))
-    R2 --> |Public enabled| Fail2(("NON-COMPLIANT"))
-
-    R3 --> |KMS encrypted| Pass3(("COMPLIANT"))
-    R3 --> |Not encrypted| Fail3(("NON-COMPLIANT"))
-
-    class R1,R2,R3 rule
-    class Pass1,Pass2,Pass3 pass
-    class Fail1,Fail2,Fail3 fail
+    class R1,R2,R3 ruleStyle
+    class Pass1,Pass3 passStyle
+    class Fail2 failStyle
 ```
 
 | Config Rule | What It Checks | Expected State |
@@ -119,15 +172,15 @@ This module fits into a multi-layered security architecture:
 
 ```mermaid
 graph TB
-    classDef layer fill:#232F3E,stroke:#fff,stroke-width:1px,color:#fff
+    classDef layerStyle fill:#232F3E,stroke:#fff,stroke-width:1px,color:#fff
 
-    L1["Layer 1: Network<br/>VPC, NACLs, Security Groups"] --> L2
-    L2["Layer 2: Identity<br/>IAM Roles, IRSA, OIDC"] --> L3
-    L3["Layer 3: Encryption<br/>KMS, Encrypted EBS, Secrets Encryption"] --> L4
-    L4["Layer 4: Logging<br/>CloudWatch, VPC Flow Logs, Audit Logs"] --> L5
-    L5["Layer 5: Detection ← THIS MODULE<br/>GuardDuty, AWS Config Rules"]
+    L1["Layer 1: Network - VPC, NACLs, Security Groups"] --> L2
+    L2["Layer 2: Identity - IAM Roles, IRSA, OIDC"] --> L3
+    L3["Layer 3: Encryption - KMS, Encrypted EBS, Secrets Encryption"] --> L4
+    L4["Layer 4: Logging - CloudWatch, VPC Flow Logs, Audit Logs"] --> L5
+    L5["Layer 5: Detection - THIS MODULE - GuardDuty, AWS Config Rules"]
 
-    class L1,L2,L3,L4,L5 layer
+    class L1,L2,L3,L4,L5 layerStyle
 ```
 
 ---
