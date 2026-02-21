@@ -1,64 +1,343 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EKS Architecture Build Steps</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/dracula.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{background:#282a36;color:#f8f8f2;font-family:'Segoe UI',system-ui,sans-serif;line-height:1.7;padding:2rem}
-.container{max-width:1000px;margin:0 auto}
-h1{color:#bd93f9;font-size:2.2rem;text-align:center;margin-bottom:.5rem}
-.subtitle{color:#6272a4;text-align:center;margin-bottom:3rem;font-size:1.1rem}
-.phase{margin:3rem 0;padding:1.5rem;border-left:4px solid #bd93f9;background:#1e1f29;border-radius:0 8px 8px 0}
-.phase h2{color:#ff79c6;font-size:1.5rem;margin-bottom:1rem}
-.step{margin:2rem 0;padding:1.5rem;background:#44475a;border-radius:8px;border:1px solid #6272a4}
-.step h3{color:#50fa7b;font-size:1.2rem;margin-bottom:.8rem}
-.step h3 span{color:#6272a4;font-size:.9rem;font-weight:normal}
-.step .note{color:#f1fa8c;font-size:.9rem;margin-top:.8rem;padding:.5rem .8rem;background:#282a36;border-radius:4px;border-left:3px solid #f1fa8c}
-pre{background:#282a36!important;border-radius:6px;padding:1rem!important;margin:.8rem 0;overflow-x:auto;border:1px solid #6272a4}
-code{font-family:'Fira Code','Consolas',monospace;font-size:.85rem}
-.d2-diagram{margin:1rem 0;min-height:100px;display:flex;justify-content:center;align-items:center;background:#282a36;border-radius:8px;padding:1rem;border:1px solid #6272a4}
-.d2-diagram.loading{color:#6272a4;font-style:italic}
-.d2-diagram svg{max-width:100%;height:auto}
-.summary{margin:3rem 0}
-.summary table{width:100%;border-collapse:collapse;font-size:.9rem}
-.summary th{background:#bd93f9;color:#282a36;padding:.6rem;text-align:left}
-.summary td{padding:.5rem .6rem;border-bottom:1px solid #44475a}
-.summary tr:hover{background:#44475a}
-.highlight-row td{color:#ff79c6;font-weight:bold}
-.badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.75rem;font-weight:bold}
-.badge-vpc{background:#50fa7b;color:#282a36}.badge-iam{background:#ff5555;color:#f8f8f2}
-.badge-eks{background:#ffb86c;color:#282a36}.badge-sec{background:#bd93f9;color:#282a36}
-.badge-sm{background:#f1fa8c;color:#282a36}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EKS Architecture Build Steps</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/dracula.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box
+        }
+
+        body {
+            background: #282a36;
+            color: #f8f8f2;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            line-height: 1.7;
+            padding: 2rem
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto
+        }
+
+        h1 {
+            color: #bd93f9;
+            font-size: 2.2rem;
+            text-align: center;
+            margin-bottom: .5rem;
+            animation: glow 2s ease-in-out infinite alternate
+        }
+
+        @keyframes glow {
+            from {
+                text-shadow: 0 0 5px #bd93f9
+            }
+
+            to {
+                text-shadow: 0 0 20px #bd93f9, 0 0 40px #bd93f966
+            }
+        }
+
+        .subtitle {
+            color: #6272a4;
+            text-align: center;
+            margin-bottom: 3rem;
+            font-size: 1.1rem
+        }
+
+        .progress-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #bd93f9, #ff79c6, #50fa7b);
+            z-index: 999;
+            transition: width .3s
+        }
+
+        .phase {
+            margin: 3rem 0;
+            padding: 1.5rem;
+            border-left: 4px solid #bd93f9;
+            background: #1e1f29;
+            border-radius: 0 8px 8px 0;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all .6s ease
+        }
+
+        .phase.visible {
+            opacity: 1;
+            transform: translateY(0)
+        }
+
+        .phase h2 {
+            color: #ff79c6;
+            font-size: 1.5rem;
+            margin-bottom: 1rem
+        }
+
+        .step {
+            margin: 2rem 0;
+            padding: 1.5rem;
+            background: #44475a;
+            border-radius: 8px;
+            border: 1px solid #6272a4;
+            opacity: 0;
+            transform: translateX(-20px);
+            transition: all .5s ease
+        }
+
+        .step.visible {
+            opacity: 1;
+            transform: translateX(0)
+        }
+
+        .step:hover {
+            border-color: #bd93f9;
+            box-shadow: 0 0 15px #bd93f933
+        }
+
+        .step h3 {
+            color: #50fa7b;
+            font-size: 1.2rem;
+            margin-bottom: .8rem
+        }
+
+        .step h3 span {
+            color: #6272a4;
+            font-size: .9rem;
+            font-weight: normal
+        }
+
+        .step .note {
+            color: #f1fa8c;
+            font-size: .9rem;
+            margin-top: .8rem;
+            padding: .5rem .8rem;
+            background: #282a36;
+            border-radius: 4px;
+            border-left: 3px solid #f1fa8c
+        }
+
+        .step .explain {
+            color: #f8f8f2;
+            font-size: .9rem;
+            margin-top: .8rem;
+            padding: .8rem;
+            background: #1e1f29;
+            border-radius: 6px;
+            border-left: 3px solid #8be9fd;
+            line-height: 1.6
+        }
+
+        .step .explain strong {
+            color: #ff79c6
+        }
+
+        .step .explain code {
+            background: #44475a;
+            padding: 1px 5px;
+            border-radius: 3px;
+            font-size: .85rem
+        }
+
+        pre {
+            background: #282a36 !important;
+            border-radius: 6px;
+            padding: 1rem !important;
+            margin: .8rem 0;
+            overflow-x: auto;
+            border: 1px solid #6272a4
+        }
+
+        code {
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: .85rem
+        }
+
+        .d2-diagram {
+            margin: 1rem 0;
+            min-height: 100px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #282a36;
+            border-radius: 8px;
+            padding: 1rem;
+            border: 1px solid #6272a4;
+            transition: all .8s ease
+        }
+
+        .d2-diagram.loaded {
+            animation: diagramFadeIn .8s ease
+        }
+
+        @keyframes diagramFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(.95)
+            }
+
+            to {
+                opacity: 1;
+                transform: scale(1)
+            }
+        }
+
+        .d2-diagram.loading {
+            color: #6272a4;
+            font-style: italic
+        }
+
+        .d2-diagram svg {
+            max-width: 100%;
+            height: auto
+        }
+
+        .d2-diagram:hover {
+            border-color: #ff79c6;
+            box-shadow: 0 0 20px #ff79c622
+        }
+
+        .summary {
+            margin: 3rem 0;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all .6s ease
+        }
+
+        .summary.visible {
+            opacity: 1;
+            transform: translateY(0)
+        }
+
+        .summary table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .9rem
+        }
+
+        .summary th {
+            background: #bd93f9;
+            color: #282a36;
+            padding: .6rem;
+            text-align: left
+        }
+
+        .summary td {
+            padding: .5rem .6rem;
+            border-bottom: 1px solid #44475a;
+            transition: background .3s
+        }
+
+        .summary tr:hover {
+            background: #44475a
+        }
+
+        .highlight-row td {
+            color: #ff79c6;
+            font-weight: bold
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: .75rem;
+            font-weight: bold;
+            transition: transform .2s
+        }
+
+        .badge:hover {
+            transform: scale(1.1)
+        }
+
+        .badge-vpc {
+            background: #50fa7b;
+            color: #282a36
+        }
+
+        .badge-iam {
+            background: #ff5555;
+            color: #f8f8f2
+        }
+
+        .badge-eks {
+            background: #ffb86c;
+            color: #282a36
+        }
+
+        .badge-sec {
+            background: #bd93f9;
+            color: #282a36
+        }
+
+        .badge-sm {
+            background: #f1fa8c;
+            color: #282a36
+        }
+
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            background: #bd93f9;
+            color: #282a36;
+            font-weight: bold;
+            font-size: .8rem;
+            margin-right: 8px
+        }
+    </style>
 </head>
+
 <body>
-<div class="container">
-<h1>🏗️ Architecture Build Steps</h1>
-<p class="subtitle">How <code>terraform apply</code> builds the entire EKS infrastructure — step by step</p>
+    <div class="container">
+        <div class="progress-bar" id="progressBar"></div>
+        <h1>🏗️ Architecture Build Steps</h1>
+        <p class="subtitle">How <code>terraform apply</code> builds the entire EKS infrastructure — step by step</p>
 
-<div id="content"></div>
+        <div id="content"></div>
 
-<div class="summary"><h2 style="color:#bd93f9;margin-bottom:1rem">Build Summary</h2>
-<table><thead><tr><th>Step</th><th>Resource</th><th>Module</th><th>Time</th></tr></thead>
-<tbody id="summary-table"></tbody></table>
-</div>
-</div>
+        <div class="summary">
+            <h2 style="color:#bd93f9;margin-bottom:1rem">Build Summary</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Step</th>
+                        <th>Resource</th>
+                        <th>Module</th>
+                        <th>Time</th>
+                    </tr>
+                </thead>
+                <tbody id="summary-table"></tbody>
+            </table>
+        </div>
+    </div>
 
-<script>
-const STEPS = [
-{phase:"Phase 1 — VPC Module (Networking Foundation)", steps:[
-{title:"Create the VPC",module:"vpc",time:"~10s",
-hcl:`resource "aws_vpc" "main" {
+    <script>
+        const STEPS = [
+            {
+                phase: "Phase 1 — VPC Module (Networking Foundation)", steps: [
+                    {
+                        title: "Create the VPC", module: "vpc", time: "~10s",
+                        hcl: `resource "aws_vpc" "main" {
   cidr_block           = var.vpc_cidr
   enable_dns_hostnames = true
   enable_dns_support   = true
   tags = merge(var.tags, { Name = "\${var.name_prefix}-vpc" })
 }`,
-d2:`direction: down
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 vpc: VPC 10.0.0.0/16 {
   style.fill: "#44475a"
@@ -67,14 +346,17 @@ vpc: VPC 10.0.0.0/16 {
     style.fill: "#50fa7b"; style.font-color: "#282a36"
   }
 }`,
-note:"enable_dns_support + enable_dns_hostnames are required by EKS — kubelet uses DNS to register nodes."},
+                        note: "enable_dns_support + enable_dns_hostnames are required by EKS — kubelet uses DNS to register nodes.",
+                        explain: "The VPC is your isolated private network in AWS. The <code>cidr_block</code> defines the IP range — <strong>10.0.0.0/16</strong> gives 65,536 IP addresses. <strong>DNS support</strong> is critical: EKS nodes use internal DNS to discover the API server, and the VPC CNI plugin uses it to resolve AWS service endpoints. Without these flags, nodes fail to join the cluster."
+                    },
 
-{title:"Attach Internet Gateway",module:"vpc",time:"~10s",
-hcl:`resource "aws_internet_gateway" "main" {
+                    {
+                        title: "Attach Internet Gateway", module: "vpc", time: "~10s",
+                        hcl: `resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
   tags = merge(var.tags, { Name = "\${var.name_prefix}-igw" })
 }`,
-d2:`direction: down
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 internet: Internet { shape: cloud; style.fill: "#6272a4" }
 vpc: VPC 10.0.0.0/16 {
@@ -82,10 +364,12 @@ vpc: VPC 10.0.0.0/16 {
   igw: Internet Gateway { style.fill: "#ffb86c"; style.font-color: "#282a36" }
 }
 internet <-> vpc.igw: Bidirectional { style.stroke: "#8be9fd" }`,
-note:"One IGW per VPC — the front door. Only public subnets use it."},
+                        note: "One IGW per VPC — the front door. Only public subnets use it."
+                    },
 
-{title:"Create Public Subnets (×3)",module:"vpc",time:"~15s",
-hcl:`resource "aws_subnet" "public" {
+                    {
+                        title: "Create Public Subnets (×3)", module: "vpc", time: "~15s",
+                        hcl: `resource "aws_subnet" "public" {
   count                   = length(var.public_subnets)
   vpc_id                  = aws_vpc.main.id
   cidr_block              = var.public_subnets[count.index]
@@ -95,7 +379,7 @@ hcl:`resource "aws_subnet" "public" {
     Name = "\${var.name_prefix}-public-\${var.azs[count.index]}"
   })
 }`,
-d2:`direction: down
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 internet: Internet { shape: cloud; style.fill: "#6272a4" }
 vpc: VPC {
@@ -118,10 +402,12 @@ internet <-> vpc.igw
 vpc.igw <-> vpc.az1.pub1
 vpc.igw <-> vpc.az2.pub2
 vpc.igw <-> vpc.az3.pub3`,
-note:"map_public_ip_on_launch = true. Tagged kubernetes.io/role/elb = 1 for ALB discovery."},
+                        note: "map_public_ip_on_launch = true. Tagged kubernetes.io/role/elb = 1 for ALB discovery."
+                    },
 
-{title:"Create Private Subnets (×3)",module:"vpc",time:"~15s",
-hcl:`resource "aws_subnet" "private" {
+                    {
+                        title: "Create Private Subnets (×3)", module: "vpc", time: "~15s",
+                        hcl: `resource "aws_subnet" "private" {
   count             = length(var.private_subnets)
   vpc_id            = aws_vpc.main.id
   cidr_block        = var.private_subnets[count.index]
@@ -130,7 +416,7 @@ hcl:`resource "aws_subnet" "private" {
     Name = "\${var.name_prefix}-private-\${var.azs[count.index]}"
   })
 }`,
-d2:`direction: down
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 vpc: VPC {
   style.fill: "#44475a"; style.stroke: "#bd93f9"
@@ -150,10 +436,12 @@ vpc: VPC {
     priv3: "Private 10.0.3.0/24" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
   }
 }`,
-note:"No public IPs. EKS worker nodes live here. Tagged kubernetes.io/role/internal-elb = 1."},
+                        note: "No public IPs. EKS worker nodes live here. Tagged kubernetes.io/role/internal-elb = 1."
+                    },
 
-{title:"Create EIP + NAT Gateway",module:"vpc",time:"~2m",
-hcl:`resource "aws_eip" "nat" {
+                    {
+                        title: "Create EIP + NAT Gateway", module: "vpc", time: "~2m",
+                        hcl: `resource "aws_eip" "nat" {
   count  = var.enable_nat_gateway ? (var.single_nat_gateway ? 1 : length(var.public_subnets)) : 0
   domain = "vpc"
   depends_on = [aws_internet_gateway.main]
@@ -165,7 +453,7 @@ resource "aws_nat_gateway" "main" {
   subnet_id     = aws_subnet.public[count.index].id
   depends_on    = [aws_internet_gateway.main]
 }`,
-d2:`direction: down
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 internet: Internet { shape: cloud; style.fill: "#6272a4" }
 vpc: VPC {
@@ -179,10 +467,12 @@ internet <-> vpc.igw
 vpc.nat -> vpc.igw
 vpc.priv1 -> vpc.nat: "Outbound only" { style.stroke: "#f1fa8c" }
 vpc.priv2 -> vpc.nat: "Outbound only" { style.stroke: "#f1fa8c" }`,
-note:"single_nat_gateway = true → 1 NAT (~$33/mo). Set false for HA (1 per AZ, ~$100/mo)."},
+                        note: "single_nat_gateway = true → 1 NAT (~$33/mo). Set false for HA (1 per AZ, ~$100/mo)."
+                    },
 
-{title:"Create Route Tables",module:"vpc",time:"~10s",
-hcl:`resource "aws_route" "public_internet_gateway" {
+                    {
+                        title: "Create Route Tables", module: "vpc", time: "~10s",
+                        hcl: `resource "aws_route" "public_internet_gateway" {
   route_table_id         = aws_route_table.public.id
   destination_cidr_block = "0.0.0.0/0"
   gateway_id             = aws_internet_gateway.main.id
@@ -194,7 +484,7 @@ resource "aws_route" "private_nat_gateway" {
   destination_cidr_block = "0.0.0.0/0"
   nat_gateway_id         = aws_nat_gateway.main[count.index].id
 }`,
-d2:`direction: right
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
 pub_rt: "Public Route Table\\n0.0.0.0/0 → IGW" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
 igw: IGW { style.fill: "#ffb86c"; style.font-color: "#282a36" }
@@ -202,10 +492,12 @@ priv_rt: "Private Route Table\\n0.0.0.0/0 → NAT" { style.fill: "#8be9fd"; styl
 nat: NAT { style.fill: "#ffb86c"; style.font-color: "#282a36" }
 pub_rt -> igw: "Direct internet" { style.stroke: "#50fa7b" }
 priv_rt -> nat: "Outbound only" { style.stroke: "#f1fa8c" }`,
-note:"Public → IGW (direct). Private → NAT (outbound only)."},
+                        note: "Public → IGW (direct). Private → NAT (outbound only)."
+                    },
 
-{title:"Create Public NACL",module:"vpc",time:"~10s",
-hcl:`resource "aws_network_acl" "public" {
+                    {
+                        title: "Create Public NACL", module: "vpc", time: "~10s",
+                        hcl: `resource "aws_network_acl" "public" {
   vpc_id     = aws_vpc.main.id
   subnet_ids = aws_subnet.public[*].id
   ingress { rule_no=100; protocol="tcp"; action="allow"; cidr_block="0.0.0.0/0"; from_port=443; to_port=443 }
@@ -214,7 +506,7 @@ hcl:`resource "aws_network_acl" "public" {
   ingress { rule_no=400; protocol="-1"; action="allow"; cidr_block=var.vpc_cidr; from_port=0; to_port=0 }
   egress  { rule_no=100; protocol="-1"; action="allow"; cidr_block="0.0.0.0/0"; from_port=0; to_port=0 }
 }`,
-d2:`direction: right
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
 nacl: "Public NACL" {
   style.fill: "#bd93f9"; style.font-color: "#f8f8f2"
@@ -225,17 +517,19 @@ nacl: "Public NACL" {
 }
 subnets: "Public Subnets x3" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
 nacl -- subnets: Applied { style.stroke: "#ff79c6" }`,
-note:"NACLs are stateless — Rule 300 allows ephemeral response ports."},
+                        note: "NACLs are stateless — Rule 300 allows ephemeral response ports."
+                    },
 
-{title:"Create Private NACL",module:"vpc",time:"~10s",
-hcl:`resource "aws_network_acl" "private" {
+                    {
+                        title: "Create Private NACL", module: "vpc", time: "~10s",
+                        hcl: `resource "aws_network_acl" "private" {
   vpc_id     = aws_vpc.main.id
   subnet_ids = aws_subnet.private[*].id
   ingress { rule_no=100; protocol="-1"; action="allow"; cidr_block=var.vpc_cidr; from_port=0; to_port=0 }
   ingress { rule_no=200; protocol="tcp"; action="allow"; cidr_block="0.0.0.0/0"; from_port=1024; to_port=65535 }
   egress  { rule_no=100; protocol="-1"; action="allow"; cidr_block="0.0.0.0/0"; from_port=0; to_port=0 }
 }`,
-d2:`direction: right
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
 nacl: "Private NACL" {
   style.fill: "#bd93f9"; style.font-color: "#f8f8f2"
@@ -244,17 +538,19 @@ nacl: "Private NACL" {
 }
 subnets: "Private Subnets x3" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
 nacl -- subnets: Applied { style.stroke: "#ff79c6" }`,
-note:"More restrictive — only VPC-internal + ephemeral ports allowed inbound."},
+                        note: "More restrictive — only VPC-internal + ephemeral ports allowed inbound."
+                    },
 
-{title:"Enable VPC Flow Logs",module:"vpc",time:"~15s",
-hcl:`resource "aws_flow_log" "main" {
+                    {
+                        title: "Enable VPC Flow Logs", module: "vpc", time: "~15s",
+                        hcl: `resource "aws_flow_log" "main" {
   count        = var.enable_flow_logs ? 1 : 0
   vpc_id       = aws_vpc.main.id
   traffic_type = "ALL"
   iam_role_arn    = aws_iam_role.flow_log[0].arn
   log_destination = aws_cloudwatch_log_group.flow_log[0].arn
 }`,
-d2:`direction: right
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
 vpc: VPC { style.fill: "#44475a"; style.stroke: "#bd93f9"
   traffic: "All Network Traffic" { style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
@@ -263,12 +559,16 @@ flow: "VPC Flow Logs" { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
 cw: "CloudWatch\\nRetention: 30 days" { style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
 vpc.traffic -> flow: "Src/Dst IP, Port\\nACCEPT/REJECT" { style.stroke: "#8be9fd" }
 flow -> cw { style.stroke: "#8be9fd" }`,
-note:"traffic_type = ALL captures accepted + rejected traffic for forensic analysis."},
-]},
+                        note: "traffic_type = ALL captures accepted + rejected traffic for forensic analysis."
+                    },
+                ]
+            },
 
-{phase:"Phase 2 — IAM Module (Parallel with VPC)", steps:[
-{title:"Create Cluster IAM Role",module:"iam",time:"~15s",
-hcl:`resource "aws_iam_role" "cluster" {
+            {
+                phase: "Phase 2 — IAM Module (Parallel with VPC)", steps: [
+                    {
+                        title: "Create Cluster IAM Role", module: "iam", time: "~15s",
+                        hcl: `resource "aws_iam_role" "cluster" {
   name_prefix = "\${var.cluster_name}-cluster-"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -276,7 +576,7 @@ hcl:`resource "aws_iam_role" "cluster" {
       Principal = { Service = "eks.amazonaws.com" } }]
   })
 }`,
-d2:`direction: right
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
 role: "Cluster IAM Role" {
   style.fill: "#ff5555"; style.font-color: "#f8f8f2"
@@ -286,10 +586,12 @@ p1: "AmazonEKSClusterPolicy" { style.fill: "#ffb86c"; style.font-color: "#282a36
 p2: "AmazonEKSVPCResourceController" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
 role -> p1: Attached { style.stroke: "#f1fa8c" }
 role -> p2: Attached { style.stroke: "#f1fa8c" }`,
-note:"Only eks.amazonaws.com can assume this role — not humans, not Lambda."},
+                        note: "Only eks.amazonaws.com can assume this role — not humans, not Lambda."
+                    },
 
-{title:"Create Node Group IAM Role",module:"iam",time:"~15s",
-hcl:`resource "aws_iam_role" "node_group" {
+                    {
+                        title: "Create Node Group IAM Role", module: "iam", time: "~15s",
+                        hcl: `resource "aws_iam_role" "node_group" {
   name_prefix = "\${var.cluster_name}-node-"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -297,7 +599,7 @@ hcl:`resource "aws_iam_role" "node_group" {
       Principal = { Service = "ec2.amazonaws.com" } }]
   })
 }`,
-d2:`direction: right
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
 role: "Node Group IAM Role" {
   style.fill: "#ff5555"; style.font-color: "#f8f8f2"
@@ -309,17 +611,21 @@ p3: "ECR ReadOnly" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
 role -> p1 { style.stroke: "#f1fa8c" }
 role -> p2 { style.stroke: "#f1fa8c" }
 role -> p3 { style.stroke: "#f1fa8c" }`,
-note:"Without WorkerNodePolicy → NotReady. Without ECR ReadOnly → no basic auth credentials."},
-]},
+                        note: "Without WorkerNodePolicy → NotReady. Without ECR ReadOnly → no basic auth credentials."
+                    },
+                ]
+            },
 
-{phase:"Phase 3 — EKS Module (Needs VPC + IAM)", steps:[
-{title:"Create KMS Key",module:"eks",time:"~10s",
-hcl:`resource "aws_kms_key" "eks" {
+            {
+                phase: "Phase 3 — EKS Module (Needs VPC + IAM)", steps: [
+                    {
+                        title: "Create KMS Key", module: "eks", time: "~10s",
+                        hcl: `resource "aws_kms_key" "eks" {
   description             = "KMS key for EKS cluster \${var.cluster_name} encryption"
   deletion_window_in_days = 7
   enable_key_rotation     = true
 }`,
-d2:`direction: right
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
 kms: "KMS Master Key" { style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
 secret: "K8s Secret" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
@@ -328,10 +634,12 @@ etcd: etcd { shape: cylinder; style.fill: "#ff5555"; style.font-color: "#f8f8f2"
 secret -> dek: "1. Generate DEK"
 dek -> etcd: "2. Encrypt secret"
 kms -> dek: "3. Encrypt DEK" { style.stroke: "#ff79c6" }`,
-note:"Envelope encryption: KMS encrypts the DEK, not the secret directly."},
+                        note: "Envelope encryption: KMS encrypts the DEK, not the secret directly."
+                    },
 
-{title:"Create Security Groups + Rules",module:"eks",time:"~15s",
-hcl:`resource "aws_security_group_rule" "node_to_cluster" {
+                    {
+                        title: "Create Security Groups + Rules", module: "eks", time: "~15s",
+                        hcl: `resource "aws_security_group_rule" "node_to_cluster" {
   type = "ingress"; from_port = 443; to_port = 443; protocol = "tcp"
   security_group_id        = aws_security_group.cluster.id
   source_security_group_id = aws_security_group.node.id
@@ -345,17 +653,19 @@ resource "aws_security_group_rule" "node_to_node" {
   type = "ingress"; from_port = 0; to_port = 65535; protocol = "-1"
   security_group_id = aws_security_group.node.id; self = true
 }`,
-d2:`direction: right
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
 csg: "Cluster SG\\nControl Plane" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
 nsg: "Node SG\\nWorkers" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
 nsg -> csg: "Port 443\\nkubelet → API" { style.stroke: "#50fa7b" }
 csg -> nsg: "Port 1025-65535\\nkubectl exec" { style.stroke: "#8be9fd" }
 nsg -> nsg: "All ports\\npod-to-pod" { style.stroke: "#f1fa8c" }`,
-note:"self = true allows node-to-node traffic on all ports."},
+                        note: "self = true allows node-to-node traffic on all ports."
+                    },
 
-{title:"Create EKS Cluster (~10 min)",module:"eks",time:"~10m",highlight:true,
-hcl:`resource "aws_eks_cluster" "main" {
+                    {
+                        title: "Create EKS Cluster (~10 min)", module: "eks", time: "~10m", highlight: true,
+                        hcl: `resource "aws_eks_cluster" "main" {
   name     = var.cluster_name
   version  = var.kubernetes_version
   role_arn = var.cluster_role_arn
@@ -370,7 +680,7 @@ hcl:`resource "aws_eks_cluster" "main" {
     resources = ["secrets"]
   }
 }`,
-d2:`direction: down
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 admin: kubectl { shape: person; style.fill: "#6272a4" }
 aws: "AWS-Managed VPC" {
@@ -388,16 +698,18 @@ customer: "Customer VPC" {
 }
 admin -> aws.cp.api: "HTTPS :443" { style.stroke: "#50fa7b" }
 aws.cp.api <-> customer.eni: "Private Link" { style.stroke: "#ff79c6" }`,
-note:"The longest step (~10 min). AWS provisions 3 redundant API servers across 3 AZs."},
+                        note: "The longest step (~10 min). AWS provisions 3 redundant API servers across 3 AZs."
+                    },
 
-{title:"Register OIDC Provider (IRSA)",module:"eks",time:"~10s",
-hcl:`resource "aws_iam_openid_connect_provider" "cluster" {
+                    {
+                        title: "Register OIDC Provider (IRSA)", module: "eks", time: "~10s",
+                        hcl: `resource "aws_iam_openid_connect_provider" "cluster" {
   count           = var.enable_irsa ? 1 : 0
   client_id_list  = ["sts.amazonaws.com"]
   thumbprint_list = [data.tls_certificate.cluster[0].certificates[0].sha1_fingerprint]
   url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
 }`,
-d2:`direction: down
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 oidc: "OIDC Provider in IAM" { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
 pods: "Per-Pod Permissions" {
@@ -406,14 +718,16 @@ pods: "Per-Pod Permissions" {
   b: "Pod B → DynamoDB Write" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
 }
 oidc -> pods: "ServiceAccount → IAM Role" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
-note:"Without IRSA all pods share the Node Role. With IRSA each pod gets least-privilege IAM."},
+                        note: "Without IRSA all pods share the Node Role. With IRSA each pod gets least-privilege IAM."
+                    },
 
-{title:"Install EKS Add-ons",module:"eks",time:"~2m",
-hcl:`resource "aws_eks_addon" "vpc_cni"    { cluster_name = aws_eks_cluster.main.name; addon_name = "vpc-cni" }
+                    {
+                        title: "Install EKS Add-ons", module: "eks", time: "~2m",
+                        hcl: `resource "aws_eks_addon" "vpc_cni"    { cluster_name = aws_eks_cluster.main.name; addon_name = "vpc-cni" }
 resource "aws_eks_addon" "kube_proxy"  { cluster_name = aws_eks_cluster.main.name; addon_name = "kube-proxy" }
 resource "aws_eks_addon" "coredns"     { cluster_name = aws_eks_cluster.main.name; addon_name = "coredns"
   depends_on = [aws_eks_node_group.main] }`,
-d2:`direction: down
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 addons: "EKS Add-ons" {
   style.fill: "#282a36"; style.stroke: "#6272a4"
@@ -421,10 +735,12 @@ addons: "EKS Add-ons" {
   kp: "kube-proxy: Service iptables" { style.fill: "#795548"; style.font-color: "#f8f8f2" }
   dns: "CoreDNS: DNS resolution (needs nodes)" { style.fill: "#795548"; style.font-color: "#f8f8f2" }
 }`,
-note:"CoreDNS depends_on node groups — it needs nodes to schedule its pods."},
+                        note: "CoreDNS depends_on node groups — it needs nodes to schedule its pods."
+                    },
 
-{title:"Create Launch Templates",module:"eks",time:"~10s",
-hcl:`resource "aws_launch_template" "node" {
+                    {
+                        title: "Create Launch Templates", module: "eks", time: "~10s",
+                        hcl: `resource "aws_launch_template" "node" {
   for_each = var.node_groups
   metadata_options {
     http_tokens = "required"  # IMDSv2 enforced
@@ -435,7 +751,7 @@ hcl:`resource "aws_launch_template" "node" {
   }
   network_interfaces { associate_public_ip_address = false }
 }`,
-d2:`direction: down
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 lt: "Launch Template" {
   style.fill: "#44475a"; style.stroke: "#bd93f9"
@@ -444,10 +760,12 @@ lt: "Launch Template" {
   noip: "No Public IP" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
   sg: "Node Security Group" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
 }`,
-note:"http_tokens = required prevents SSRF credential theft (Capital One breach used IMDSv1)."},
+                        note: "http_tokens = required prevents SSRF credential theft (Capital One breach used IMDSv1)."
+                    },
 
-{title:"Create Node Groups",module:"eks",time:"~3m",
-hcl:`resource "aws_eks_node_group" "main" {
+                    {
+                        title: "Create Node Groups", module: "eks", time: "~3m",
+                        hcl: `resource "aws_eks_node_group" "main" {
   for_each     = var.node_groups
   cluster_name = aws_eks_cluster.main.name
   node_role_arn = var.node_role_arn
@@ -460,7 +778,7 @@ hcl:`resource "aws_eks_node_group" "main" {
   depends_on = [aws_eks_addon.vpc_cni, aws_eks_addon.kube_proxy]
   lifecycle { ignore_changes = [scaling_config[0].desired_size] }
 }`,
-d2:`direction: down
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 vpc: "Customer VPC" {
   style.fill: "#44475a"; style.stroke: "#bd93f9"
@@ -476,12 +794,16 @@ vpc: "Customer VPC" {
 vpc.cp.api -> vpc.priv.g1: "443" { style.stroke: "#50fa7b" }
 vpc.cp.api -> vpc.priv.g2: "443" { style.stroke: "#50fa7b" }
 vpc.cp.api -> vpc.priv.s1: "443" { style.stroke: "#50fa7b" }`,
-note:"ignore_changes = [desired_size] prevents Terraform from fighting the Cluster Autoscaler."},
-]},
+                        note: "ignore_changes = [desired_size] prevents Terraform from fighting the Cluster Autoscaler."
+                    },
+                ]
+            },
 
-{phase:"Phase 4 — Secrets Manager Module", steps:[
-{title:"Create Secrets + KMS Key",module:"sm",time:"~30s",
-hcl:`resource "aws_kms_key" "secrets" {
+            {
+                phase: "Phase 4 — Secrets Manager Module", steps: [
+                    {
+                        title: "Create Secrets + KMS Key", module: "sm", time: "~30s",
+                        hcl: `resource "aws_kms_key" "secrets" {
   count = var.create_db_secret || var.create_api_secret || var.create_app_config_secret ? 1 : 0
   enable_key_rotation = true
 }
@@ -490,7 +812,7 @@ resource "aws_secretsmanager_secret" "db_credentials" {
   kms_key_id = aws_kms_key.secrets[0].id
   recovery_window_in_days = 7
 }`,
-d2:`direction: right
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
 sm: "Secrets Manager" {
   style.fill: "#44475a"; style.stroke: "#ffb86c"
@@ -502,10 +824,12 @@ sm: "Secrets Manager" {
   kms -> api: encrypts { style.stroke: "#ff79c6"; style.stroke-dash: 3 }
   kms -> app: encrypts { style.stroke: "#ff79c6"; style.stroke-dash: 3 }
 }`,
-note:"Separate KMS key from EKS — different blast radius if compromised."},
+                        note: "Separate KMS key from EKS — different blast radius if compromised."
+                    },
 
-{title:"Create Read-Only IAM Policy",module:"sm",time:"~5s",
-hcl:`resource "aws_iam_policy" "read_secrets" {
+                    {
+                        title: "Create Read-Only IAM Policy", module: "sm", time: "~5s",
+                        hcl: `resource "aws_iam_policy" "read_secrets" {
   policy = jsonencode({
     Statement = [
       { Action = ["secretsmanager:GetSecretValue","secretsmanager:DescribeSecret"]
@@ -518,13 +842,17 @@ hcl:`resource "aws_iam_policy" "read_secrets" {
     ]
   })
 }`,
-d2:``,
-note:"Only specific secret ARNs (no wildcards). kms:Decrypt required to read encrypted values."},
-]},
+                        d2: ``,
+                        note: "Only specific secret ARNs (no wildcards). kms:Decrypt required to read encrypted values."
+                    },
+                ]
+            },
 
-{phase:"Phase 5 — Security Module", steps:[
-{title:"Enable GuardDuty",module:"sec",time:"~30s",
-hcl:`resource "aws_guardduty_detector" "main" {
+            {
+                phase: "Phase 5 — Security Module", steps: [
+                    {
+                        title: "Enable GuardDuty", module: "sec", time: "~30s",
+                        hcl: `resource "aws_guardduty_detector" "main" {
   count  = var.enable_guardduty ? 1 : 0
   enable = true
   finding_publishing_frequency = "FIFTEEN_MINUTES"
@@ -533,7 +861,7 @@ resource "aws_guardduty_detector_feature" "eks_audit_logs" {
   detector_id = aws_guardduty_detector.main[0].id
   name = "EKS_AUDIT_LOGS"; status = "ENABLED"
 }`,
-d2:`direction: down
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 sources: "Data Sources" {
   style.fill: "#282a36"; style.stroke: "#6272a4"
@@ -554,10 +882,12 @@ alert: "Security Alerts" { style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
 sources.vfl -> gd.det { style.stroke: "#8be9fd" }
 sources.k8s -> gd.det { style.stroke: "#8be9fd" }
 gd.det -> alert { style.stroke: "#ff5555" }`,
-note:"Detects crypto mining, compromised creds, unauthorized API calls, privilege escalation."},
+                        note: "Detects crypto mining, compromised creds, unauthorized API calls, privilege escalation."
+                    },
 
-{title:"Enable AWS Config Rules",module:"sec",time:"~15s",
-hcl:`resource "aws_config_config_rule" "eks_cluster_logging" {
+                    {
+                        title: "Enable AWS Config Rules", module: "sec", time: "~15s",
+                        hcl: `resource "aws_config_config_rule" "eks_cluster_logging" {
   name = "\${var.cluster_name}-eks-logging-enabled"
   source { owner = "AWS"; source_identifier = "EKS_CLUSTER_LOGGING_ENABLED" }
   scope { compliance_resource_types = ["AWS::EKS::Cluster"] }
@@ -566,7 +896,7 @@ resource "aws_config_config_rule" "eks_secrets_encrypted" {
   name = "\${var.cluster_name}-eks-secrets-encrypted"
   source { owner = "AWS"; source_identifier = "EKS_SECRETS_ENCRYPTED" }
 }`,
-d2:`direction: down
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 config: "AWS Config" {
   style.fill: "#44475a"; style.stroke: "#bd93f9"
@@ -584,46 +914,68 @@ c3: "COMPLIANT" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
 config.r1 -> c1 { style.stroke: "#50fa7b" }
 config.r2 -> c2 { style.stroke: "#ffb86c" }
 config.r3 -> c3 { style.stroke: "#50fa7b" }`,
-note:"Config continuously monitors resource configurations against security rules."},
-]},
-];
+                        note: "Config continuously monitors resource configurations against security rules."
+                    },
+                ]
+            },
+        ];
 
-const BADGES = {vpc:'badge-vpc',iam:'badge-iam',eks:'badge-eks',sec:'badge-sec',sm:'badge-sm'};
-const BADGE_LABEL = {vpc:'VPC',iam:'IAM',eks:'EKS',sec:'Security',sm:'Secrets'};
+        const BADGES = { vpc: 'badge-vpc', iam: 'badge-iam', eks: 'badge-eks', sec: 'badge-sec', sm: 'badge-sm' };
+        const BADGE_LABEL = { vpc: 'VPC', iam: 'IAM', eks: 'EKS', sec: 'Security', sm: 'Secrets' };
 
-// Render
-let html='', stepNum=0, summaryRows='';
-STEPS.forEach(phase => {
-  html += `<div class="phase"><h2>${phase.phase}</h2>`;
-  phase.steps.forEach(s => {
-    stepNum++;
-    html += `<div class="step"><h3>Step ${stepNum} — ${s.title} <span><span class="badge ${BADGES[s.module]}">${BADGE_LABEL[s.module]}</span> ${s.time}</span></h3>`;
-    html += `<pre><code class="language-hcl">${escHtml(s.hcl)}</code></pre>`;
-    if(s.d2) html += `<div class="d2-diagram loading" data-d2="${btoa(unescape(encodeURIComponent(s.d2)))}">Loading diagram...</div>`;
-    if(s.note) html += `<div class="note">💡 ${s.note}</div>`;
-    html += `</div>`;
-    summaryRows += `<tr class="${s.highlight?'highlight-row':''}"><td>${stepNum}</td><td>${s.title}</td><td><span class="badge ${BADGES[s.module]}">${BADGE_LABEL[s.module]}</span></td><td>${s.time}</td></tr>`;
-  });
-  html += `</div>`;
-});
-summaryRows += `<tr class="highlight-row"><td></td><td><strong>Total: ~50 resources</strong></td><td></td><td><strong>~20 min</strong></td></tr>`;
+        // Render
+        let html = '', stepNum = 0, summaryRows = '';
+        STEPS.forEach(phase => {
+            html += `<div class="phase"><h2>${phase.phase}</h2>`;
+            phase.steps.forEach(s => {
+                stepNum++;
+                html += `<div class="step"><h3>Step ${stepNum} — ${s.title} <span><span class="badge ${BADGES[s.module]}">${BADGE_LABEL[s.module]}</span> ${s.time}</span></h3>`;
+                html += `<pre><code class="language-hcl">${escHtml(s.hcl)}</code></pre>`;
+                if (s.d2) html += `<div class="d2-diagram loading" data-d2="${btoa(unescape(encodeURIComponent(s.d2)))}">Loading diagram...</div>`;
+                if (s.explain) html += `<div class="explain">${s.explain}</div>`;
+                if (s.note) html += `<div class="note">💡 ${s.note}</div>`;
+                html += `</div>`;
+                summaryRows += `<tr class="${s.highlight ? 'highlight-row' : ''}"><td>${stepNum}</td><td>${s.title}</td><td><span class="badge ${BADGES[s.module]}">${BADGE_LABEL[s.module]}</span></td><td>${s.time}</td></tr>`;
+            });
+            html += `</div>`;
+        });
+        summaryRows += `<tr class="highlight-row"><td></td><td><strong>Total: ~50 resources</strong></td><td></td><td><strong>~20 min</strong></td></tr>`;
 
-document.getElementById('content').innerHTML = html;
-document.getElementById('summary-table').innerHTML = summaryRows;
+        document.getElementById('content').innerHTML = html;
+        document.getElementById('summary-table').innerHTML = summaryRows;
 
-function escHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+        function escHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-// Highlight code
-hljs.highlightAll();
+        // Highlight code
+        hljs.highlightAll();
 
-// Render D2 diagrams via Kroki
-document.querySelectorAll('.d2-diagram[data-d2]').forEach(el => {
-  const src = decodeURIComponent(escape(atob(el.dataset.d2)));
-  fetch('https://kroki.io/d2/svg',{method:'POST',headers:{'Content-Type':'text/plain'},body:src})
-    .then(r=>{if(!r.ok)throw new Error(r.status);return r.text()})
-    .then(svg=>{el.innerHTML=svg;el.classList.remove('loading')})
-    .catch(e=>{el.innerHTML=`<span style="color:#ff5555">Diagram failed: ${e.message}</span>`;el.classList.remove('loading')});
-});
-</script>
+        // Render D2 diagrams via Kroki
+        document.querySelectorAll('.d2-diagram[data-d2]').forEach(el => {
+            const src = decodeURIComponent(escape(atob(el.dataset.d2)));
+            fetch('https://kroki.io/d2/svg', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: src })
+                .then(r => { if (!r.ok) throw new Error(r.status); return r.text() })
+                .then(svg => { el.innerHTML = svg; el.classList.remove('loading'); el.classList.add('loaded') })
+                .catch(e => { el.innerHTML = `<span style="color:#ff5555">Diagram failed: ${e.message}</span>`; el.classList.remove('loading') });
+        });
+
+        // Scroll-triggered animations
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry, i) => {
+                if (entry.isIntersecting) {
+                    setTimeout(() => entry.target.classList.add('visible'), i * 100);
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.1 });
+        document.querySelectorAll('.phase, .step, .summary').forEach(el => observer.observe(el));
+
+        // Progress bar
+        window.addEventListener('scroll', () => {
+            const h = document.documentElement;
+            const pct = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100;
+            document.getElementById('progressBar').style.width = pct + '%';
+        });
+    </script>
 </body>
+
 </html>
