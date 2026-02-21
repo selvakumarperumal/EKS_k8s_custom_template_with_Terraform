@@ -183,12 +183,12 @@
         @keyframes diagramFadeIn {
             from {
                 opacity: 0;
-                transform: scale(.95)
+                transform: scale(.95) translateY(10px)
             }
 
             to {
                 opacity: 1;
-                transform: scale(1)
+                transform: scale(1) translateY(0)
             }
         }
 
@@ -199,7 +199,13 @@
 
         .d2-diagram svg {
             max-width: 100%;
-            height: auto
+            height: auto;
+            transition: transform .4s ease
+        }
+
+        .d2-diagram:hover svg {
+            transform: scale(1.02) translateY(-3px);
+            filter: drop-shadow(0 8px 20px #bd93f933)
         }
 
         .d2-diagram:hover {
@@ -364,7 +370,8 @@ vpc: VPC 10.0.0.0/16 {
   igw: Internet Gateway { style.fill: "#ffb86c"; style.font-color: "#282a36" }
 }
 internet <-> vpc.igw: Bidirectional { style.stroke: "#8be9fd" }`,
-                        note: "One IGW per VPC — the front door. Only public subnets use it."
+                        note: "One IGW per VPC — the front door. Only public subnets use it.",
+                        explain: "The Internet Gateway is a horizontally-scaled, redundant AWS-managed component. It performs <strong>1:1 NAT</strong> for instances with public IPs. Without it, nothing in your VPC can reach the internet. You only ever need <strong>one per VPC</strong>."
                     },
 
                     {
@@ -376,7 +383,8 @@ internet <-> vpc.igw: Bidirectional { style.stroke: "#8be9fd" }`,
   availability_zone       = var.azs[count.index]
   map_public_ip_on_launch = true
   tags = merge(var.tags, var.public_subnet_tags, {
-    Name = "\${var.name_prefix}-public-\${var.azs[count.index]}"
+    Name = ",
+                        explain:"Public subnets are spread across <strong>3 Availability Zones</strong> for fault tolerance. The <code>count</code> loop creates one subnet per AZ. The EKS tag <code>kubernetes.io/role/elb</code> tells the AWS Load Balancer Controller to place public-facing ALBs in these subnets."\${var.name_prefix}-public-\${var.azs[count.index]}"
   })
 }`,
                         d2: `direction: down
@@ -436,7 +444,8 @@ vpc: VPC {
     priv3: "Private 10.0.3.0/24" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
   }
 }`,
-                        note: "No public IPs. EKS worker nodes live here. Tagged kubernetes.io/role/internal-elb = 1."
+                        note: "No public IPs. EKS worker nodes live here. Tagged kubernetes.io/role/internal-elb = 1.",
+                        explain: "Private subnets have <strong>no route to the Internet Gateway</strong> — they are completely isolated. Worker nodes here can only reach the internet through the NAT Gateway. The tag <code>kubernetes.io/role/internal-elb</code> tells EKS to place internal NLBs here for service-to-service communication."
                     },
 
                     {
@@ -467,7 +476,8 @@ internet <-> vpc.igw
 vpc.nat -> vpc.igw
 vpc.priv1 -> vpc.nat: "Outbound only" { style.stroke: "#f1fa8c" }
 vpc.priv2 -> vpc.nat: "Outbound only" { style.stroke: "#f1fa8c" }`,
-                        note: "single_nat_gateway = true → 1 NAT (~$33/mo). Set false for HA (1 per AZ, ~$100/mo)."
+                        note: "single_nat_gateway = true → 1 NAT (~$33/mo). Set false for HA (1 per AZ, ~$100/mo).",
+                        explain: "The NAT Gateway translates private IPs to a public Elastic IP for outbound traffic. The <code>count</code> ternary handles two modes: <strong>single NAT</strong> (cheaper, single AZ) or <strong>multi-AZ NAT</strong> (one per AZ for HA). In production, use multi-AZ so private subnets survive an AZ failure."
                     },
 
                     {
@@ -517,7 +527,8 @@ nacl: "Public NACL" {
 }
 subnets: "Public Subnets x3" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
 nacl -- subnets: Applied { style.stroke: "#ff79c6" }`,
-                        note: "NACLs are stateless — Rule 300 allows ephemeral response ports."
+                        note: "NACLs are stateless — Rule 300 allows ephemeral response ports.",
+                        explain: "NACLs operate at the <strong>subnet level</strong> and are <strong>stateless</strong> — unlike Security Groups which are stateful. This means you must explicitly allow both <strong>request AND response</strong> traffic. Rule 300 (ephemeral ports 1024-65535) allows response packets from outbound connections. Rules are evaluated in <strong>numeric order</strong> — lowest number wins."
                     },
 
                     {
@@ -538,7 +549,8 @@ nacl: "Private NACL" {
 }
 subnets: "Private Subnets x3" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
 nacl -- subnets: Applied { style.stroke: "#ff79c6" }`,
-                        note: "More restrictive — only VPC-internal + ephemeral ports allowed inbound."
+                        note: "More restrictive — only VPC-internal + ephemeral ports allowed inbound.",
+                        explain: "Private NACLs only allow traffic originating from <strong>within the VPC</strong> (10.0.0.0/16). No external traffic can reach private subnets directly. The ephemeral port rule allows <strong>return traffic</strong> from NAT Gateway outbound connections (like pulling Docker images)."
                     },
 
                     {
@@ -559,7 +571,8 @@ flow: "VPC Flow Logs" { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
 cw: "CloudWatch\\nRetention: 30 days" { style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
 vpc.traffic -> flow: "Src/Dst IP, Port\\nACCEPT/REJECT" { style.stroke: "#8be9fd" }
 flow -> cw { style.stroke: "#8be9fd" }`,
-                        note: "traffic_type = ALL captures accepted + rejected traffic for forensic analysis."
+                        note: "traffic_type = ALL captures accepted + rejected traffic for forensic analysis.",
+                        explain: "VPC Flow Logs capture metadata about every network connection: <strong>source/destination IP</strong>, <strong>port</strong>, <strong>protocol</strong>, and whether it was <strong>ACCEPTED or REJECTED</strong>. This is essential for security forensics, troubleshooting connectivity issues, and compliance auditing. Retained for 30 days in CloudWatch (~$5/mo)."
                     },
                 ]
             },
@@ -586,7 +599,8 @@ p1: "AmazonEKSClusterPolicy" { style.fill: "#ffb86c"; style.font-color: "#282a36
 p2: "AmazonEKSVPCResourceController" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
 role -> p1: Attached { style.stroke: "#f1fa8c" }
 role -> p2: Attached { style.stroke: "#f1fa8c" }`,
-                        note: "Only eks.amazonaws.com can assume this role — not humans, not Lambda."
+                        note: "Only eks.amazonaws.com can assume this role — not humans, not Lambda.",
+                        explain: "IAM roles have two parts: the <strong>trust policy</strong> (who can assume the role) and the <strong>permissions policies</strong> (what the role can do). The trust policy locks this role to the EKS service. <code>AmazonEKSClusterPolicy</code> lets EKS manage ENIs and describe resources. <code>VPCResourceController</code> enables the VPC CNI to manage network interfaces."
                     },
 
                     {
@@ -611,7 +625,8 @@ p3: "ECR ReadOnly" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
 role -> p1 { style.stroke: "#f1fa8c" }
 role -> p2 { style.stroke: "#f1fa8c" }
 role -> p3 { style.stroke: "#f1fa8c" }`,
-                        note: "Without WorkerNodePolicy → NotReady. Without ECR ReadOnly → no basic auth credentials."
+                        note: "Without WorkerNodePolicy → NotReady. Without ECR ReadOnly → no basic auth credentials.",
+                        explain: "Worker nodes need three capabilities: <strong>register with EKS</strong> (WorkerNodePolicy), <strong>assign pod IPs</strong> (CNI Policy), and <strong>pull container images</strong> (ECR ReadOnly). Each policy follows least privilege — nodes can only read from ECR, not push. For tighter security, move the CNI policy to the aws-node ServiceAccount via IRSA."
                     },
                 ]
             },
@@ -634,7 +649,9 @@ etcd: etcd { shape: cylinder; style.fill: "#ff5555"; style.font-color: "#f8f8f2"
 secret -> dek: "1. Generate DEK"
 dek -> etcd: "2. Encrypt secret"
 kms -> dek: "3. Encrypt DEK" { style.stroke: "#ff79c6" }`,
-                        note: "Envelope encryption: KMS encrypts the DEK, not the secret directly."
+                        note: "Envelope encryption: KMS encrypts the DEK, not the secret directly.",
+                        explain: "Without KMS, Kubernetes secrets in etcd are just <strong>base64 encoded</strong> (easily decoded). With envelope encryption, each secret gets a unique <strong>Data Encryption Key (DEK)</strong>, and the KMS master key encrypts the DEK. Even if someone accesses etcd directly, they can not decrypt secrets without the KMS key. <code>enable_key_rotation</code> rotates the key annually.",
+                        explain: "Route tables are the traffic rules. <code>0.0.0.0/0</code> is the default route — it catches all traffic not destined for within the VPC. Public subnets send it to the IGW. Private subnets send it to the NAT. The <code>aws_route_table_association</code> links each subnet to its route table."
                     },
 
                     {
@@ -660,7 +677,8 @@ nsg: "Node SG\\nWorkers" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
 nsg -> csg: "Port 443\\nkubelet → API" { style.stroke: "#50fa7b" }
 csg -> nsg: "Port 1025-65535\\nkubectl exec" { style.stroke: "#8be9fd" }
 nsg -> nsg: "All ports\\npod-to-pod" { style.stroke: "#f1fa8c" }`,
-                        note: "self = true allows node-to-node traffic on all ports."
+                        note: "self = true allows node-to-node traffic on all ports.",
+                        explain: "Three rules define all cluster communication: <strong>Nodes → API (443)</strong> for kubelet heartbeats and pod status. <strong>API → Nodes (1025-65535)</strong> for kubectl exec, logs, and port-forward. <strong>Node → Node (all)</strong> for pod-to-pod networking, CoreDNS queries, and metrics scraping. <code>self = true</code> means the SG references itself."
                     },
 
                     {
@@ -698,7 +716,8 @@ customer: "Customer VPC" {
 }
 admin -> aws.cp.api: "HTTPS :443" { style.stroke: "#50fa7b" }
 aws.cp.api <-> customer.eni: "Private Link" { style.stroke: "#ff79c6" }`,
-                        note: "The longest step (~10 min). AWS provisions 3 redundant API servers across 3 AZs."
+                        note: "The longest step (~10 min). AWS provisions 3 redundant API servers across 3 AZs.",
+                        explain: "AWS creates the control plane in their own VPC with <strong>3 redundant API servers</strong> across 3 AZs. It injects <strong>ENIs into your private subnets</strong> so nodes can reach the API privately. <code>encryption_config</code> encrypts all Kubernetes Secrets at rest. The 5 log types cover API calls, authentication, scheduling, and controller decisions."
                     },
 
                     {
@@ -718,7 +737,8 @@ pods: "Per-Pod Permissions" {
   b: "Pod B → DynamoDB Write" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
 }
 oidc -> pods: "ServiceAccount → IAM Role" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
-                        note: "Without IRSA all pods share the Node Role. With IRSA each pod gets least-privilege IAM."
+                        note: "Without IRSA all pods share the Node Role. With IRSA each pod gets least-privilege IAM.",
+                        explain: "IRSA maps a Kubernetes <strong>ServiceAccount</strong> to an <strong>IAM Role</strong> via OIDC federation. When a pod uses that ServiceAccount, AWS STS exchanges the K8s token for temporary IAM credentials. This eliminates the need for access keys in pods. The TLS thumbprint verifies the OIDC issuer identity."
                     },
 
                     {
@@ -735,7 +755,8 @@ addons: "EKS Add-ons" {
   kp: "kube-proxy: Service iptables" { style.fill: "#795548"; style.font-color: "#f8f8f2" }
   dns: "CoreDNS: DNS resolution (needs nodes)" { style.fill: "#795548"; style.font-color: "#f8f8f2" }
 }`,
-                        note: "CoreDNS depends_on node groups — it needs nodes to schedule its pods."
+                        note: "CoreDNS depends_on node groups — it needs nodes to schedule its pods.",
+                        explain: "<strong>VPC CNI</strong> runs as a DaemonSet — assigns real VPC IPs to pods (no overlay network). <strong>kube-proxy</strong> manages iptables/IPVS rules for Service routing. <strong>CoreDNS</strong> resolves DNS names (my-svc.namespace.svc.cluster.local → ClusterIP). CoreDNS is a Deployment and needs at least one running node — hence the depends_on."
                     },
 
                     {
@@ -760,7 +781,8 @@ lt: "Launch Template" {
   noip: "No Public IP" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
   sg: "Node Security Group" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
 }`,
-                        note: "http_tokens = required prevents SSRF credential theft (Capital One breach used IMDSv1)."
+                        note: "http_tokens = required prevents SSRF credential theft (Capital One breach used IMDSv1).",
+                        explain: "Launch templates define the <strong>security baseline</strong> for all nodes. <code>http_tokens = required</code> enforces IMDSv2, preventing SSRF attacks that steal credentials from the metadata endpoint. <code>hop_limit = 2</code> is needed because containers are 2 network hops from the metadata service. <code>gp3</code> volumes provide 3000 baseline IOPS with encryption at rest."
                     },
 
                     {
@@ -794,7 +816,8 @@ vpc: "Customer VPC" {
 vpc.cp.api -> vpc.priv.g1: "443" { style.stroke: "#50fa7b" }
 vpc.cp.api -> vpc.priv.g2: "443" { style.stroke: "#50fa7b" }
 vpc.cp.api -> vpc.priv.s1: "443" { style.stroke: "#50fa7b" }`,
-                        note: "ignore_changes = [desired_size] prevents Terraform from fighting the Cluster Autoscaler."
+                        note: "ignore_changes = [desired_size] prevents Terraform from fighting the Cluster Autoscaler.",
+                        explain: "Two node groups serve different purposes: <strong>General (ON_DEMAND)</strong> for reliable, always-available workloads, and <strong>Spot (up to 90% off)</strong> for fault-tolerant batch jobs. Spot nodes have a <strong>taint</strong> that prevents pods from scheduling there unless they explicitly tolerate it. <code>lifecycle { ignore_changes }</code> prevents Terraform from overriding autoscaler decisions."
                     },
                 ]
             },
@@ -824,7 +847,8 @@ sm: "Secrets Manager" {
   kms -> api: encrypts { style.stroke: "#ff79c6"; style.stroke-dash: 3 }
   kms -> app: encrypts { style.stroke: "#ff79c6"; style.stroke-dash: 3 }
 }`,
-                        note: "Separate KMS key from EKS — different blast radius if compromised."
+                        note: "Separate KMS key from EKS — different blast radius if compromised.",
+                        explain: "A <strong>dedicated KMS key</strong> for Secrets Manager means it has separate access policies from the EKS key. If one key is compromised, the other remains safe. Secrets are conditionally created using <code>count</code> flags. <code>recovery_window_in_days = 7</code> prevents accidental permanent deletion — you have 7 days to recover."
                     },
 
                     {
@@ -843,7 +867,8 @@ sm: "Secrets Manager" {
   })
 }`,
                         d2: ``,
-                        note: "Only specific secret ARNs (no wildcards). kms:Decrypt required to read encrypted values."
+                        note: "Only specific secret ARNs (no wildcards). kms:Decrypt required to read encrypted values.",
+                        explain: "The IAM policy uses <code>concat()</code> to dynamically build the list of allowed secret ARNs based on which secrets were actually created. No wildcards — pods can only read <strong>their specific secrets</strong>. <code>kms:Decrypt</code> is required because the secrets are encrypted with the dedicated KMS key."
                     },
                 ]
             },
@@ -882,7 +907,8 @@ alert: "Security Alerts" { style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
 sources.vfl -> gd.det { style.stroke: "#8be9fd" }
 sources.k8s -> gd.det { style.stroke: "#8be9fd" }
 gd.det -> alert { style.stroke: "#ff5555" }`,
-                        note: "Detects crypto mining, compromised creds, unauthorized API calls, privilege escalation."
+                        note: "Detects crypto mining, compromised creds, unauthorized API calls, privilege escalation.",
+                        explain: "GuardDuty analyzes <strong>VPC Flow Logs, CloudTrail, DNS queries</strong>, and <strong>EKS audit logs</strong> using ML and threat intelligence. It detects patterns like cryptocurrency mining, port scanning, data exfiltration, and compromised IAM credentials. <code>finding_publishing_frequency = FIFTEEN_MINUTES</code> means findings are updated every 15 minutes. Cost is based on data volume analyzed (~$5-15/mo for small clusters)."
                     },
 
                     {
@@ -914,7 +940,8 @@ c3: "COMPLIANT" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
 config.r1 -> c1 { style.stroke: "#50fa7b" }
 config.r2 -> c2 { style.stroke: "#ffb86c" }
 config.r3 -> c3 { style.stroke: "#50fa7b" }`,
-                        note: "Config continuously monitors resource configurations against security rules."
+                        note: "Config continuously monitors resource configurations against security rules.",
+                        explain: "AWS Config takes a <strong>continuous snapshot</strong> of all resource configurations and evaluates them against rules. The three EKS rules check: is control plane logging enabled? Is the API endpoint private? Are secrets encrypted with KMS? Non-compliant resources are flagged but <strong>not automatically remediated</strong> — you decide what to fix."
                     },
                 ]
             },
