@@ -389,11 +389,12 @@
 }`,
                         d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
-vpc: VPC 10.0.0.0/16 {
-  style.fill: "#44475a"
-  style.stroke: "#bd93f9"
-  dns: "DNS Support + Hostnames Enabled\\n65,536 IP addresses" {
-    style.fill: "#50fa7b"; style.font-color: "#282a36"
+aws: "☁️ AWS Cloud" {
+  style.fill: "#1e1f29"; style.stroke: "#ff9900"; style.stroke-width: 2
+  vpc: "🖧 Customer VPC\n10.0.0.0/16" {
+    shape: package
+    style.fill: "#282a36"; style.stroke: "#50fa7b"; style.stroke-width: 2
+    dns: "DNS Resolver" { shape: cylinder; style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
   }
 }`,
                         note: "enable_dns_support + enable_dns_hostnames are required by EKS — kubelet uses DNS to register nodes.",
@@ -406,14 +407,16 @@ vpc: VPC 10.0.0.0/16 {
   vpc_id = aws_vpc.main.id
   tags = merge(var.tags, { Name = "\${var.name_prefix}-igw" })
 }`,
-                        d2: `direction: down
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
-internet: Internet { shape: cloud; style.fill: "#6272a4" }
-vpc: VPC 10.0.0.0/16 {
-  style.fill: "#44475a"; style.stroke: "#bd93f9"
-  igw: Internet Gateway { style.fill: "#ffb86c"; style.font-color: "#282a36" }
+internet: "🌐 Internet" { shape: cloud; style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+aws: "☁️ AWS Cloud" {
+  style.fill: "#1e1f29"; style.stroke: "#ff9900"; style.stroke-width: 2
+  igw: "🚪 Internet Gateway" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36"; style.stroke-width: 2 }
+  vpc: "🖧 Customer VPC" { shape: package; style.fill: "#282a36"; style.stroke: "#50fa7b"; style.stroke-width: 2 }
 }
-internet <-> vpc.igw: Bidirectional { style.stroke: "#8be9fd" }`,
+internet <-> aws.igw: "Public Traffic" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+aws.igw <-> aws.vpc: "VPC Routing" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
                         note: "One IGW per VPC — the front door. Only public subnets use it.",
                         explain: "The Internet Gateway is a horizontally-scaled, redundant AWS-managed component. It performs <strong>1:1 NAT</strong> for instances with public IPs. Without it, nothing in your VPC can reach the internet. You only ever need <strong>one per VPC</strong>."
                     },
@@ -433,27 +436,18 @@ internet <-> vpc.igw: Bidirectional { style.stroke: "#8be9fd" }`,
 }`,
                         d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
-internet: Internet { shape: cloud; style.fill: "#6272a4" }
-vpc: VPC {
-  style.fill: "#44475a"; style.stroke: "#bd93f9"
-  igw: IGW { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-  az1: AZ-A {
-    style.fill: "#282a36"; style.stroke: "#6272a4"
-    pub1: "Public 10.0.101.0/24" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
-  }
-  az2: AZ-B {
-    style.fill: "#282a36"; style.stroke: "#6272a4"
-    pub2: "Public 10.0.102.0/24" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
-  }
-  az3: AZ-C {
-    style.fill: "#282a36"; style.stroke: "#6272a4"
-    pub3: "Public 10.0.103.0/24" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
-  }
+internet: "🌐 Internet" { shape: cloud; style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+igw: "🚪 IGW" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+vpc: "🖧 Customer VPC" {
+  style.fill: "#1e1f29"; style.stroke: "#50fa7b"; style.stroke-width: 2
+  az1: "🏢 AZ-A" { style.fill: "#282a36"; style.stroke: "#6272a4"; pub1: "🟢 Public Subnet 1" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" } }
+  az2: "🏢 AZ-B" { style.fill: "#282a36"; style.stroke: "#6272a4"; pub2: "🟢 Public Subnet 2" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" } }
+  az3: "🏢 AZ-C" { style.fill: "#282a36"; style.stroke: "#6272a4"; pub3: "🟢 Public Subnet 3" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" } }
 }
-internet <-> vpc.igw
-vpc.igw <-> vpc.az1.pub1
-vpc.igw <-> vpc.az2.pub2
-vpc.igw <-> vpc.az3.pub3`,
+internet <-> igw: "In/Out" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+igw <-> vpc.az1.pub1 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+igw <-> vpc.az2.pub2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+igw <-> vpc.az3.pub3 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
                         note: "map_public_ip_on_launch = true. Tagged kubernetes.io/role/elb = 1 for ALB discovery."
                     },
 
@@ -470,22 +464,17 @@ vpc.igw <-> vpc.az3.pub3`,
 }`,
                         d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
-vpc: VPC {
-  style.fill: "#44475a"; style.stroke: "#bd93f9"
-  az1: AZ-A {
-    style.fill: "#282a36"; style.stroke: "#6272a4"
-    pub1: "Public" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
-    priv1: "Private 10.0.1.0/24" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
+vpc: "🖧 Customer VPC" {
+  style.fill: "#1e1f29"; style.stroke: "#50fa7b"; style.stroke-width: 2
+  az1: "🏢 AZ-A" { 
+    style.fill: "#282a36"; style.stroke: "#6272a4"; 
+    pub1: "🟢 Public Subnet" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" } 
+    priv1: "🔒 Private Subnet" { shape: rectangle; style.fill: "#8be9fd"; style.font-color: "#282a36" } 
   }
-  az2: AZ-B {
-    style.fill: "#282a36"; style.stroke: "#6272a4"
-    pub2: "Public" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
-    priv2: "Private 10.0.2.0/24" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
-  }
-  az3: AZ-C {
-    style.fill: "#282a36"; style.stroke: "#6272a4"
-    pub3: "Public" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
-    priv3: "Private 10.0.3.0/24" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
+  az2: "🏢 AZ-B" { 
+    style.fill: "#282a36"; style.stroke: "#6272a4"; 
+    pub2: "🟢 Public Subnet" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" } 
+    priv2: "🔒 Private Subnet" { shape: rectangle; style.fill: "#8be9fd"; style.font-color: "#282a36" } 
   }
 }`,
                         note: "No public IPs. EKS worker nodes live here. Tagged kubernetes.io/role/internal-elb = 1.",
@@ -508,18 +497,19 @@ resource "aws_nat_gateway" "main" {
 }`,
                         d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
-internet: Internet { shape: cloud; style.fill: "#6272a4" }
-vpc: VPC {
-  style.fill: "#44475a"; style.stroke: "#bd93f9"
-  igw: IGW { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-  nat: "NAT Gateway + Elastic IP" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-  priv1: Private Subnet { style.fill: "#8be9fd"; style.font-color: "#282a36" }
-  priv2: Private Subnet { style.fill: "#8be9fd"; style.font-color: "#282a36" }
+internet: "🌐 Internet" { shape: cloud; style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+vpc: "🖧 Customer VPC" {
+  style.fill: "#1e1f29"; style.stroke: "#50fa7b"; style.stroke-width: 2
+  igw: "🚪 IGW" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+  pub: "🟢 Public Subnet" { 
+    style.fill: "#282a36"; style.stroke: "#50fa7b"
+    nat: "🔄 NAT Gateway (with Elastic IP)" { shape: package; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+  }
+  priv: "🔒 Private Subnets" { shape: rectangle; style.fill: "#8be9fd"; style.font-color: "#282a36" }
 }
-internet <-> vpc.igw
-vpc.nat -> vpc.igw
-vpc.priv1 -> vpc.nat: "Outbound only" { style.stroke: "#f1fa8c" }
-vpc.priv2 -> vpc.nat: "Outbound only" { style.stroke: "#f1fa8c" }`,
+internet <-> vpc.igw: "Public Route" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+vpc.pub.nat -> vpc.igw { style.stroke: "#ffb86c"; style.stroke-dash: 5 }
+vpc.priv -> vpc.pub.nat: "Outbound Bound Only" { style.stroke: "#8be9fd"; style.stroke-dash: 5 }`,
                         note: "single_nat_gateway = true → 1 NAT (~$33/mo). Set false for HA (1 per AZ, ~$100/mo).",
                         explain: "The NAT Gateway translates private IPs to a public Elastic IP for outbound traffic. The <code>count</code> ternary handles two modes: <strong>single NAT</strong> (cheaper, single AZ) or <strong>multi-AZ NAT</strong> (one per AZ for HA). In production, use multi-AZ so private subnets survive an AZ failure."
                     },
@@ -540,12 +530,22 @@ resource "aws_route" "private_nat_gateway" {
 }`,
                         d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
-pub_rt: "Public Route Table\\n0.0.0.0/0 → IGW" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
-igw: IGW { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-priv_rt: "Private Route Table\\n0.0.0.0/0 → NAT" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
-nat: NAT { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-pub_rt -> igw: "Direct internet" { style.stroke: "#50fa7b" }
-priv_rt -> nat: "Outbound only" { style.stroke: "#f1fa8c" }`,
+igw: "🚪 IGW" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+nat: "🔄 NAT Gateway" { shape: package; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+
+pub_rt: "🗺️ Public Route Table" { 
+  shape: step; style.fill: "#50fa7b"; style.font-color: "#282a36" 
+  local: "10.0.0.0/16 → Local"
+  def: "0.0.0.0/0 → IGW"
+}
+priv_rt: "🗺️ Private Route Table" { 
+  shape: step; style.fill: "#8be9fd"; style.font-color: "#282a36" 
+  local: "10.0.0.0/16 → Local"
+  def: "0.0.0.0/0 → NAT"
+}
+
+pub_rt -> igw: "Direct Internet" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+priv_rt -> nat: "Outbound Only" { style.stroke: "#8be9fd"; style.stroke-dash: 5 }`,
                         note: "Public → IGW (direct). Private → NAT (outbound only)."
                     },
 
@@ -562,15 +562,18 @@ priv_rt -> nat: "Outbound only" { style.stroke: "#f1fa8c" }`,
 }`,
                         d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
-nacl: "Public NACL" {
-  style.fill: "#bd93f9"; style.font-color: "#f8f8f2"
-  r1: "Rule 100: HTTPS 443" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
-  r2: "Rule 200: HTTP 80" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
-  r3: "Rule 300: Ephemeral 1024-65535" { style.fill: "#f1fa8c"; style.font-color: "#282a36" }
-  r4: "Rule 400: VPC Internal" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
+traffic: "🌐 Inbound Traffic" { shape: cloud; style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+nacl: "🛡️ Public NACL (Stateless)" {
+  style.fill: "#1e1f29"; style.stroke: "#bd93f9"; style.stroke-width: 2
+  r1: "ALLOW 443 (HTTPS)" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+  r2: "ALLOW 80 (HTTP)" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+  r3: "ALLOW 1024-65535 (Ephemeral)" { shape: rectangle; style.fill: "#f1fa8c"; style.font-color: "#282a36" }
 }
-subnets: "Public Subnets x3" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
-nacl -- subnets: Applied { style.stroke: "#ff79c6" }`,
+subnets: "🟢 Public Subnets" { shape: package; style.fill: "#282a36"; style.stroke: "#50fa7b" }
+
+traffic -> nacl.r1 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+traffic -> nacl.r2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+nacl -> subnets: "Filtered Traffic" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }`,
                         note: "NACLs are stateless — Rule 300 allows ephemeral response ports.",
                         explain: "NACLs operate at the <strong>subnet level</strong> and are <strong>stateless</strong> — unlike Security Groups which are stateful. This means you must explicitly allow both <strong>request AND response</strong> traffic. Rule 300 (ephemeral ports 1024-65535) allows response packets from outbound connections. Rules are evaluated in <strong>numeric order</strong> — lowest number wins."
                     },
@@ -586,13 +589,16 @@ nacl -- subnets: Applied { style.stroke: "#ff79c6" }`,
 }`,
                         d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
-nacl: "Private NACL" {
-  style.fill: "#bd93f9"; style.font-color: "#f8f8f2"
-  r1: "Rule 100: VPC Internal ONLY" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
-  r2: "Rule 200: Ephemeral ports" { style.fill: "#f1fa8c"; style.font-color: "#282a36" }
+traffic: "🌐 Internal / NAT Return" { shape: cloud; style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+nacl: "🛡️ Private NACL (Stateless)" {
+  style.fill: "#1e1f29"; style.stroke: "#bd93f9"; style.stroke-width: 2
+  r1: "ALLOW 10.0.0.0/16 (VPC Internal)" { shape: rectangle; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+  r2: "ALLOW 1024-65535 (NAT Ephemeral)" { shape: rectangle; style.fill: "#f1fa8c"; style.font-color: "#282a36" }
 }
-subnets: "Private Subnets x3" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
-nacl -- subnets: Applied { style.stroke: "#ff79c6" }`,
+subnets: "🔒 Private Subnets" { shape: package; style.fill: "#282a36"; style.stroke: "#8be9fd" }
+
+traffic -> nacl.r1 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+nacl -> subnets: "Filtered Traffic" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }`,
                         note: "More restrictive — only VPC-internal + ephemeral ports allowed inbound.",
                         explain: "Private NACLs only allow traffic originating from <strong>within the VPC</strong> (10.0.0.0/16). No external traffic can reach private subnets directly. The ephemeral port rule allows <strong>return traffic</strong> from NAT Gateway outbound connections (like pulling Docker images)."
                     },
@@ -608,13 +614,15 @@ nacl -- subnets: Applied { style.stroke: "#ff79c6" }`,
 }`,
                         d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
-vpc: VPC { style.fill: "#44475a"; style.stroke: "#bd93f9"
-  traffic: "All Network Traffic" { style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+vpc: "🖧 Customer VPC" { 
+  style.fill: "#1e1f29"; style.stroke: "#50fa7b"; style.stroke-width: 2
+  traffic: "🔄 All Network Traffic\n(ACCEPT & REJECT)" { shape: hexagon; style.fill: "#ff79c6"; style.font-color: "#282a36" }
 }
-flow: "VPC Flow Logs" { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
-cw: "CloudWatch\\nRetention: 30 days" { style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
-vpc.traffic -> flow: "Src/Dst IP, Port\\nACCEPT/REJECT" { style.stroke: "#8be9fd" }
-flow -> cw { style.stroke: "#8be9fd" }`,
+flow: "📉 VPC Flow Logs" { shape: cylinder; style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
+cw: "☁️ CloudWatch\n(30 Days Retention)" { shape: cloud; style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+
+vpc.traffic -> flow: "ENI Data" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+flow -> cw: "Log Streams" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }`,
                         note: "traffic_type = ALL captures accepted + rejected traffic for forensic analysis.",
                         explain: "VPC Flow Logs capture metadata about every network connection: <strong>source/destination IP</strong>, <strong>port</strong>, <strong>protocol</strong>, and whether it was <strong>ACCEPTED or REJECTED</strong>. This is essential for security forensics, troubleshooting connectivity issues, and compliance auditing. Retained for 30 days in CloudWatch (~$5/mo)."
                     },
@@ -633,16 +641,19 @@ flow -> cw { style.stroke: "#8be9fd" }`,
       Principal = { Service = "eks.amazonaws.com" } }]
   })
 }`,
-                        d2: `direction: right
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
-role: "Cluster IAM Role" {
-  style.fill: "#ff5555"; style.font-color: "#f8f8f2"
-  trust: "Trust: eks.amazonaws.com" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+role: "🔐 Cluster IAM Role" {
+  style.fill: "#1e1f29"; style.stroke: "#ff5555"; style.stroke-width: 2
+  trust: "Trust Identity: eks.amazonaws.com" { shape: document; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
 }
-p1: "AmazonEKSClusterPolicy" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-p2: "AmazonEKSVPCResourceController" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-role -> p1: Attached { style.stroke: "#f1fa8c" }
-role -> p2: Attached { style.stroke: "#f1fa8c" }`,
+policies: "AWS Managed Policies" {
+  style.fill: "#282a36"; style.stroke: "#ffb86c"
+  p1: "AmazonEKSClusterPolicy" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+  p2: "AmazonEKSVPCResourceController" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+}
+role -> policies.p1: "Attached" { style.stroke: "#f1fa8c"; style.stroke-dash: 5 }
+role -> policies.p2: "Attached" { style.stroke: "#f1fa8c"; style.stroke-dash: 5 }`,
                         note: "Only eks.amazonaws.com can assume this role — not humans, not Lambda.",
                         explain: "IAM roles have two parts: the <strong>trust policy</strong> (who can assume the role) and the <strong>permissions policies</strong> (what the role can do). The trust policy locks this role to the EKS service. <code>AmazonEKSClusterPolicy</code> lets EKS manage ENIs and describe resources. <code>VPCResourceController</code> enables the VPC CNI to manage network interfaces."
                     },
@@ -657,18 +668,21 @@ role -> p2: Attached { style.stroke: "#f1fa8c" }`,
       Principal = { Service = "ec2.amazonaws.com" } }]
   })
 }`,
-                        d2: `direction: right
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
-role: "Node Group IAM Role" {
-  style.fill: "#ff5555"; style.font-color: "#f8f8f2"
-  trust: "Trust: ec2.amazonaws.com" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+role: "🔐 Node Group IAM Role" {
+  style.fill: "#1e1f29"; style.stroke: "#ff5555"; style.stroke-width: 2
+  trust: "Trust Identity: ec2.amazonaws.com" { shape: document; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
 }
-p1: "EKSWorkerNodePolicy" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-p2: "EKS_CNI_Policy" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-p3: "ECR ReadOnly" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-role -> p1 { style.stroke: "#f1fa8c" }
-role -> p2 { style.stroke: "#f1fa8c" }
-role -> p3 { style.stroke: "#f1fa8c" }`,
+policies: "AWS Managed Policies" {
+  style.fill: "#282a36"; style.stroke: "#ffb86c"
+  p1: "EKSWorkerNodePolicy" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+  p2: "EKS_CNI_Policy" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+  p3: "ECR ReadOnly" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+}
+role -> policies.p1 { style.stroke: "#f1fa8c"; style.stroke-dash: 5 }
+role -> policies.p2 { style.stroke: "#f1fa8c"; style.stroke-dash: 5 }
+role -> policies.p3 { style.stroke: "#f1fa8c"; style.stroke-dash: 5 }`,
                         note: "Without WorkerNodePolicy → NotReady. Without ECR ReadOnly → no basic auth credentials.",
                         explain: "Worker nodes need three capabilities: <strong>register with EKS</strong> (WorkerNodePolicy), <strong>assign pod IPs</strong> (CNI Policy), and <strong>pull container images</strong> (ECR ReadOnly). Each policy follows least privilege — nodes can only read from ECR, not push. For tighter security, move the CNI policy to the aws-node ServiceAccount via IRSA."
                     },
@@ -686,13 +700,15 @@ role -> p3 { style.stroke: "#f1fa8c" }`,
 }`,
                         d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
-kms: "KMS Master Key" { style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
-secret: "K8s Secret" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
-dek: "Data Encryption Key" { style.fill: "#f1fa8c"; style.font-color: "#282a36" }
-etcd: etcd { shape: cylinder; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
-secret -> dek: "1. Generate DEK"
-dek -> etcd: "2. Encrypt secret"
-kms -> dek: "3. Encrypt DEK" { style.stroke: "#ff79c6" }`,
+kms: "🔑 KMS Master Key\n(Envelope Encryption)" { shape: hexagon; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
+dek: "🎫 Data Encryption Key\n(Generated by KMS)" { shape: document; style.fill: "#f1fa8c"; style.font-color: "#282a36" }
+k8s: "Kubernetes Secrets" {
+  style.fill: "#1e1f29"; style.stroke: "#bd93f9"
+  etcd: "🗄️ etcd Database" { shape: cylinder; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+}
+
+kms -> dek: "1. Creates & Encrypts DEK" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+dek -> k8s.etcd: "2. Encrypts Secrets Data" { style.stroke: "#f1fa8c"; style.stroke-dash: 5 }`,
                         note: "Envelope encryption: KMS encrypts the DEK, not the secret directly.",
                         explain: "Without KMS, Kubernetes secrets in etcd are just <strong>base64 encoded</strong> (easily decoded). With envelope encryption, each secret gets a unique <strong>Data Encryption Key (DEK)</strong>, and the KMS master key encrypts the DEK. Even if someone accesses etcd directly, they can not decrypt secrets without the KMS key. <code>enable_key_rotation</code> rotates the key annually.",
                         explain: "Route tables are the traffic rules. <code>0.0.0.0/0</code> is the default route — it catches all traffic not destined for within the VPC. Public subnets send it to the IGW. Private subnets send it to the NAT. The <code>aws_route_table_association</code> links each subnet to its route table."
@@ -716,11 +732,13 @@ resource "aws_security_group_rule" "node_to_node" {
 }`,
                         d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
-csg: "Cluster SG\\nControl Plane" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-nsg: "Node SG\\nWorkers" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-nsg -> csg: "Port 443\\nkubelet → API" { style.stroke: "#50fa7b" }
-csg -> nsg: "Port 1025-65535\\nkubectl exec" { style.stroke: "#8be9fd" }
-nsg -> nsg: "All ports\\npod-to-pod" { style.stroke: "#f1fa8c" }`,
+csg: "🛡️ Cluster SG\n(EKS Control Plane)" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+nsg: "🛡️ Node SG\n(EC2 Worker Nodes)" { shape: hexagon; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+
+# Rules
+nsg -> csg: "Ingress 443 (kubelet to API)" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+csg -> nsg: "Ingress 1025-65535 (API to kubelet/exec)" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }
+nsg -> nsg: "Ingress All Ports (Pod-to-Pod)" { style.stroke: "#f1fa8c"; style.stroke-dash: 5 }`,
                         note: "self = true allows node-to-node traffic on all ports.",
                         explain: "Three rules define all cluster communication: <strong>Nodes → API (443)</strong> for kubelet heartbeats and pod status. <strong>API → Nodes (1025-65535)</strong> for kubectl exec, logs, and port-forward. <strong>Node → Node (all)</strong> for pod-to-pod networking, CoreDNS queries, and metrics scraping. <code>self = true</code> means the SG references itself."
                     },
@@ -796,13 +814,21 @@ elb <-> customer.workers.node2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
 }`,
                         d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
-oidc: "OIDC Provider in IAM" { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
-pods: "Per-Pod Permissions" {
-  style.fill: "#282a36"; style.stroke: "#6272a4"
-  a: "Pod A → S3 ReadOnly" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
-  b: "Pod B → DynamoDB Write" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
+oidc: "🛡️ OIDC Identity Provider\n(IAM Integration)" { shape: hexagon; style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
+
+pods: "Kubernetes Namespace" {
+  style.fill: "#1e1f29"; style.stroke: "#6272a4"; style.stroke-width: 2
+  sa1: "🎫 ServiceAccount (S3 Read)" { shape: document; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+  sa2: "🎫 ServiceAccount (Dynamo Write)" { shape: document; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+  
+  pod1: "📦 App Pod 1" { shape: package; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+  pod2: "📦 App Pod 2" { shape: package; style.fill: "#8be9fd"; style.font-color: "#282a36" }
 }
-oidc -> pods: "ServiceAccount → IAM Role" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
+
+oidc -> pods.sa1: "STS AssumeRoleWithWebIdentity" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+oidc -> pods.sa2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+pods.sa1 -> pods.pod1: "Mounted Token" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }
+pods.sa2 -> pods.pod2: "Mounted Token" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }`,
                         note: "Without IRSA all pods share the Node Role. With IRSA each pod gets least-privilege IAM.",
                         explain: "IRSA maps a Kubernetes <strong>ServiceAccount</strong> to an <strong>IAM Role</strong> via OIDC federation. When a pod uses that ServiceAccount, AWS STS exchanges the K8s token for temporary IAM credentials. This eliminates the need for access keys in pods. The TLS thumbprint verifies the OIDC issuer identity."
                     },
@@ -815,12 +841,15 @@ resource "aws_eks_addon" "coredns"     { cluster_name = aws_eks_cluster.main.nam
   depends_on = [aws_eks_node_group.main] }`,
                         d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
-addons: "EKS Add-ons" {
-  style.fill: "#282a36"; style.stroke: "#6272a4"
-  cni: "VPC CNI: real VPC IPs for pods" { style.fill: "#795548"; style.font-color: "#f8f8f2" }
-  kp: "kube-proxy: Service iptables" { style.fill: "#795548"; style.font-color: "#f8f8f2" }
-  dns: "CoreDNS: DNS resolution (needs nodes)" { style.fill: "#795548"; style.font-color: "#f8f8f2" }
-}`,
+worker: "🖥️ EC2 Worker Node" {
+  style.fill: "#1e1f29"; style.stroke: "#6272a4"; style.stroke-width: 2
+  
+  cni: "🌐 VPC CNI (DaemonSet)\nManages ENIs & VPC IPs" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+  kp: "🔀 kube-proxy (DaemonSet)\nManages iptables routing" { shape: hexagon; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+  dns: "🔍 CoreDNS (Deployment)\nCluster DNS Resolution" { shape: hexagon; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+}
+vpc: "🖧 Customer VPC" { shape: package; style.fill: "#44475a"; style.font-color: "#f8f8f2" } 
+worker.cni -> vpc: "Assigns real IPs to Pods" { style.stroke: "#ffb86c"; style.stroke-dash: 5 }`,
                         note: "CoreDNS depends_on node groups — it needs nodes to schedule its pods.",
                         explain: "<strong>VPC CNI</strong> runs as a DaemonSet — assigns real VPC IPs to pods (no overlay network). <strong>kube-proxy</strong> manages iptables/IPVS rules for Service routing. <strong>CoreDNS</strong> resolves DNS names (my-svc.namespace.svc.cluster.local → ClusterIP). CoreDNS is a Deployment and needs at least one running node — hence the depends_on."
                     },
@@ -838,15 +867,21 @@ addons: "EKS Add-ons" {
   }
   network_interfaces { associate_public_ip_address = false }
 }`,
-                        d2: `direction: down
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
-lt: "Launch Template" {
-  style.fill: "#44475a"; style.stroke: "#bd93f9"
-  imds: "IMDSv2 Enforced (blocks SSRF)" { style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
-  ebs: "gp3 Encrypted, 3000 IOPS" { style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
-  noip: "No Public IP" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
-  sg: "Node Security Group" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-}`,
+admin: "💻 Terraform" { shape: person; style.fill: "#6272a4" }
+
+lt: "📜 EC2 Launch Template" {
+  style.fill: "#1e1f29"; style.stroke: "#bd93f9"; style.stroke-width: 2
+  imds: "🔐 IMDSv2 Enforced\n(Blocks SSRF)" { shape: rectangle; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
+  ebs: "💾 gp3 Volumes\n(Encrypted, 3000 IOPS)" { shape: cylinder; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+  net: "🌐 Network Interfaces\n(No Public IPs)" { shape: rectangle; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+}
+
+asg: "⚙️ EKS Node Group (ASG)" { shape: hexagon; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+
+admin -> lt: "Defines Baseline" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+lt -> asg: "Used to provision instances" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }`,
                         note: "http_tokens = required prevents SSRF credential theft (Capital One breach used IMDSv1).",
                         explain: "Launch templates define the <strong>security baseline</strong> for all nodes. <code>http_tokens = required</code> enforces IMDSv2, preventing SSRF attacks that steal credentials from the metadata endpoint. <code>hop_limit = 2</code> is needed because containers are 2 network hops from the metadata service. <code>gp3</code> volumes provide 3000 baseline IOPS with encryption at rest."
                     },
@@ -868,20 +903,29 @@ lt: "Launch Template" {
 }`,
                         d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
-vpc: "Customer VPC" {
-  style.fill: "#44475a"; style.stroke: "#bd93f9"
-  cp: "Control Plane" { style.fill: "#282a36"; style.stroke: "#ffb86c"
-    api: "API Server" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-  }
-  priv: "Private Subnets" { style.fill: "#282a36"; style.stroke: "#8be9fd"
-    g1: "t3.medium ON_DEMAND" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
-    g2: "t3.medium ON_DEMAND" { style.fill: "#8be9fd"; style.font-color: "#282a36" }
-    s1: "t3.medium SPOT 90% off" { style.fill: "#f1fa8c"; style.font-color: "#282a36" }
+api: "⬡ EKS Control Plane" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+
+vpc: "🖧 Customer VPC" {
+  style.fill: "#1e1f29"; style.stroke: "#bd93f9"; style.stroke-width: 2
+  
+  priv: "🔒 Private Subnets" { 
+    style.fill: "#282a36"; style.stroke: "#8be9fd"
+    
+    g1: "📦 ON_DEMAND Node Group" {
+      style.fill: "#44475a"; style.stroke: "#50fa7b"
+      n1: "EC2 t3.medium" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+      n2: "EC2 t3.medium" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+    }
+    
+    g2: "📉 SPOT Node Group" {
+      style.fill: "#44475a"; style.stroke: "#f1fa8c"
+      s1: "EC2 t3.medium (Tainted)" { shape: rectangle; style.fill: "#f1fa8c"; style.font-color: "#282a36" }
+    }
   }
 }
-vpc.cp.api -> vpc.priv.g1: "443" { style.stroke: "#50fa7b" }
-vpc.cp.api -> vpc.priv.g2: "443" { style.stroke: "#50fa7b" }
-vpc.cp.api -> vpc.priv.s1: "443" { style.stroke: "#50fa7b" }`,
+api -> vpc.priv.g1.n1: "Kubelet Join (HTTPS)" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+api -> vpc.priv.g1.n2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+api -> vpc.priv.g2.s1 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
                         note: "ignore_changes = [desired_size] prevents Terraform from fighting the Cluster Autoscaler.",
                         explain: "Two node groups serve different purposes: <strong>General (ON_DEMAND)</strong> for reliable, always-available workloads, and <strong>Spot (up to 90% off)</strong> for fault-tolerant batch jobs. Spot nodes have a <strong>taint</strong> that prevents pods from scheduling there unless they explicitly tolerate it. <code>lifecycle { ignore_changes }</code> prevents Terraform from overriding autoscaler decisions."
                     },
@@ -901,18 +945,21 @@ resource "aws_secretsmanager_secret" "db_credentials" {
   kms_key_id = aws_kms_key.secrets[0].id
   recovery_window_in_days = 7
 }`,
-                        d2: `direction: right
+                        d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
-sm: "Secrets Manager" {
-  style.fill: "#44475a"; style.stroke: "#ffb86c"
-  kms: "Dedicated KMS Key" { style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
-  db: "DB Credentials" { style.fill: "#f1fa8c"; style.font-color: "#282a36" }
-  api: "API Keys" { style.fill: "#f1fa8c"; style.font-color: "#282a36" }
-  app: "App Config" { style.fill: "#f1fa8c"; style.font-color: "#282a36" }
-  kms -> db: encrypts { style.stroke: "#ff79c6"; style.stroke-dash: 3 }
-  kms -> api: encrypts { style.stroke: "#ff79c6"; style.stroke-dash: 3 }
-  kms -> app: encrypts { style.stroke: "#ff79c6"; style.stroke-dash: 3 }
-}`,
+sm: "🔐 AWS Secrets Manager" {
+  style.fill: "#1e1f29"; style.stroke: "#ffb86c"; style.stroke-width: 2
+  
+  db: "🗄️ Database Credentials" { shape: document; style.fill: "#f1fa8c"; style.font-color: "#282a36" }
+  api: "🔌 External API Keys" { shape: document; style.fill: "#f1fa8c"; style.font-color: "#282a36" }
+  app: "⚙️ App Configurations" { shape: document; style.fill: "#f1fa8c"; style.font-color: "#282a36" }
+}
+
+kms: "🔑 Custom KMS Key\n(Dedicated to Secrets)" { shape: hexagon; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
+
+kms -> sm.db: "Encrypts at rest" { style.stroke: "#ff79c6"; style.stroke-dash: 5 }
+kms -> sm.api: "Encrypts at rest" { style.stroke: "#ff79c6"; style.stroke-dash: 5 }
+kms -> sm.app: "Encrypts at rest" { style.stroke: "#ff79c6"; style.stroke-dash: 5 }`,
                         note: "Separate KMS key from EKS — different blast radius if compromised.",
                         explain: "A <strong>dedicated KMS key</strong> for Secrets Manager means it has separate access policies from the EKS key. If one key is compromised, the other remains safe. Secrets are conditionally created using <code>count</code> flags. <code>recovery_window_in_days = 7</code> prevents accidental permanent deletion — you have 7 days to recover."
                     },
@@ -932,7 +979,21 @@ sm: "Secrets Manager" {
     ]
   })
 }`,
-                        d2: ``,
+                        d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+pod: "📦 Application Pod\n(via IRSA)" { shape: package; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+
+iam: "🛡️ IAM Policy (Read-Only)" {
+  style.fill: "#1e1f29"; style.stroke: "#ff5555"; style.stroke-width: 2
+  p1: "ALLOW: secretsmanager:GetSecretValue\n(Only specific ARNs)" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+  p2: "ALLOW: kms:Decrypt\n(Only dedicated KMS Key)" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+}
+
+sm: "🔐 Secrets Vault" { shape: cylinder; style.fill: "#bd93f9"; style.font-color: "#282a36" }
+
+pod -> iam { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+iam.p1 -> sm: "Read Secret" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+iam.p2 -> sm: "Decrypt via KMS" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
                         note: "Only specific secret ARNs (no wildcards). kms:Decrypt required to read encrypted values.",
                         explain: "The IAM policy uses <code>concat()</code> to dynamically build the list of allowed secret ARNs based on which secrets were actually created. No wildcards — pods can only read <strong>their specific secrets</strong>. <code>kms:Decrypt</code> is required because the secrets are encrypted with the dedicated KMS key."
                     },
@@ -952,27 +1013,26 @@ resource "aws_guardduty_detector_feature" "eks_audit_logs" {
   detector_id = aws_guardduty_detector.main[0].id
   name = "EKS_AUDIT_LOGS"; status = "ENABLED"
 }`,
-                        d2: `direction: down
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
-sources: "Data Sources" {
-  style.fill: "#282a36"; style.stroke: "#6272a4"
-  vfl: "VPC Flow Logs" { style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
-  k8s: "EKS Audit Logs" { style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+sources: "📊 Audit & Network Sources" {
+  style.fill: "#1e1f29"; style.stroke: "#6272a4"
+  vfl: "VPC Flow Logs" { shape: document; style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+  k8s: "EKS Audit Logs" { shape: document; style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+  dns: "Route 53 DNS Logs" { shape: document; style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
 }
-gd: "GuardDuty" {
-  style.fill: "#44475a"; style.stroke: "#bd93f9"
-  det: Detector { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
-  eks: "EKS Audit Analysis" { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
-  rt: "Runtime Monitoring" { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
-  mal: "Malware Protection" { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
-  det -> eks
-  det -> rt
-  det -> mal
+
+gd: "🛡️ AWS GuardDuty" {
+  style.fill: "#282a36"; style.stroke: "#bd93f9"; style.stroke-width: 2
+  det: "🧠 Machine Learning Detector\n(Updates every 15 min)" { shape: hexagon; style.fill: "#bd93f9"; style.font-color: "#282a36" }
 }
-alert: "Security Alerts" { style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
-sources.vfl -> gd.det { style.stroke: "#8be9fd" }
-sources.k8s -> gd.det { style.stroke: "#8be9fd" }
-gd.det -> alert { style.stroke: "#ff5555" }`,
+
+alert: "🚨 Security Findings\n(Crypto mining, Exploit attempts)" { shape: callout; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
+
+sources.vfl -> gd.det: "Analyzes" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+sources.k8s -> gd.det: "Analyzes" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+sources.dns -> gd.det: "Analyzes" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+gd.det -> alert: "Generates Alerts" { style.stroke: "#ff5555"; style.stroke-dash: 5; style.stroke-width: 2 }`,
                         note: "Detects crypto mining, compromised creds, unauthorized API calls, privilege escalation.",
                         explain: "GuardDuty analyzes <strong>VPC Flow Logs, CloudTrail, DNS queries</strong>, and <strong>EKS audit logs</strong> using ML and threat intelligence. It detects patterns like cryptocurrency mining, port scanning, data exfiltration, and compromised IAM credentials. <code>finding_publishing_frequency = FIFTEEN_MINUTES</code> means findings are updated every 15 minutes. Cost is based on data volume analyzed (~$5-15/mo for small clusters)."
                     },
@@ -988,24 +1048,27 @@ resource "aws_config_config_rule" "eks_secrets_encrypted" {
   name = "\${var.cluster_name}-eks-secrets-encrypted"
   source { owner = "AWS"; source_identifier = "EKS_SECRETS_ENCRYPTED" }
 }`,
-                        d2: `direction: down
+                        d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
-config: "AWS Config" {
-  style.fill: "#44475a"; style.stroke: "#bd93f9"
-  rec: "Config Recorder" { style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
-  r1: "EKS Logging?" { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
-  r2: "No Public Endpoint?" { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
-  r3: "Secrets Encrypted?" { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
-  rec -> r1
-  rec -> r2
-  rec -> r3
+config: "⚙️ AWS Config Service" {
+  style.fill: "#1e1f29"; style.stroke: "#bd93f9"; style.stroke-width: 2
+  rec: "📸 Config Snapshot Recorder" { shape: cylinder; style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+  
+  rules: "Compliance Rules" {
+    style.fill: "#282a36"; style.stroke: "#ffb86c"
+    r1: "Is EKS Logging Enabled?" { shape: rectangle; style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
+    r2: "Is Endpoint Private?" { shape: rectangle; style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
+    r3: "Are Secrets Encrypted?" { shape: rectangle; style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
+  }
 }
-c1: "COMPLIANT" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
-c2: "NON_COMPLIANT (dev OK)" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
-c3: "COMPLIANT" { style.fill: "#50fa7b"; style.font-color: "#282a36" }
-config.r1 -> c1 { style.stroke: "#50fa7b" }
-config.r2 -> c2 { style.stroke: "#ffb86c" }
-config.r3 -> c3 { style.stroke: "#50fa7b" }`,
+
+eks: "⬡ EKS Cluster Resources" { shape: package; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+
+c1: "✅ COMPLIANT" { shape: callout; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+
+eks -> config.rec: "Configuration State Changes" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+config.rec -> config.rules: "Evaluates Snapshot" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+config.rules -> c1: "Status Dashboard" { style.stroke: "#50fa7b"; style.stroke-dash: 5; style.stroke-width: 2 }`,
                         note: "Config continuously monitors resource configurations against security rules.",
                         explain: "AWS Config takes a <strong>continuous snapshot</strong> of all resource configurations and evaluates them against rules. The three EKS rules check: is control plane logging enabled? Is the API endpoint private? Are secrets encrypted with KMS? Non-compliant resources are flagged but <strong>not automatically remediated</strong> — you decide what to fix."
                     },
