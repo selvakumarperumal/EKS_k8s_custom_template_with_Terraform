@@ -208,6 +208,28 @@
             filter: drop-shadow(0 8px 20px #bd93f933)
         }
 
+        /* Animatic flowing data for all connection lines in D2 SVGs */
+        @keyframes flowData {
+            to {
+                stroke-dashoffset: -16;
+            }
+        }
+
+        .d2-diagram svg path[fill="none"][stroke]:not([stroke="none"]) {
+            stroke-dasharray: 8 8 !important;
+            animation: flowData 0.8s linear infinite;
+        }
+
+        /* Interactive nodes on hover inside SVG */
+        .d2-diagram svg g {
+            transform-origin: center;
+            transition: transform 0.2s ease, filter 0.2s ease;
+        }
+
+        .d2-diagram svg g:hover {
+            filter: drop-shadow(0 0 8px #bd93f988);
+        }
+
         .d2-diagram:hover {
             border-color: #ff79c6;
             box-shadow: 0 0 20px #ff79c622
@@ -312,6 +334,28 @@
         <div class="progress-bar" id="progressBar"></div>
         <h1>🏗️ Architecture Build Steps</h1>
         <p class="subtitle">How <code>terraform apply</code> builds the entire EKS infrastructure — step by step</p>
+
+        <div class="explain"
+            style="margin-bottom: 3rem; background: #1e1f29; padding: 1.5rem; border-left: 4px solid #50fa7b; border-radius: 8px;">
+            <h3 style="color: #50fa7b; margin-bottom: 0.5rem;">🏗️ Overall Architecture Summary</h3>
+            This guide visually demonstrates the construction of a highly-available, production-ready Amazon EKS cluster
+            over <strong>5 distinct phases</strong>:
+            <ul style="margin-left: 1.5rem; margin-top: 0.5rem; color: #f8f8f2;">
+                <li><strong>Phase 1 (VPC):</strong> Lays the network foundation across 3 Availability Zones with
+                    isolated private subnets and secure outbound NAT routing.</li>
+                <li><strong>Phase 2 (IAM):</strong> Establishes least-privilege, identity-based access roles for the EKS
+                    control plane and EC2 worker nodes.</li>
+                <li><strong>Phase 3 (EKS):</strong> Deploys the Kubernetes API servers, configures OIDC for per-pod
+                    permissions (IRSA), and launches secure, IMDSv2-enforced worker nodes.</li>
+                <li><strong>Phase 4 (Secrets):</strong> Sets up an independent, KMS-encrypted Secrets Manager vault for
+                    application credentials and API keys.</li>
+                <li><strong>Phase 5 (Security):</strong> Wraps the entire infrastructure in a continuous
+                    threat-detection perimeter using GuardDuty and AWS Config.</li>
+            </ul>
+            <em>Scroll down to see the data flow in action — the animated dashed lines represent network traffic and API
+                calls between components!</em>
+        </div>
+
 
         <div id="content"></div>
 
