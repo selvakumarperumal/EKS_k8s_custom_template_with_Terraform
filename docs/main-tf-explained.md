@@ -242,7 +242,11 @@ graph TD
     IAM -- "cluster_role_arn" --> EKS
     IAM -- "node_group_role_arn" --> EKS
     
-    Variables["terraform.tfvars /<br/>environments/*.tfvars"] --> VPC & IAM & EKS & SM & SEC
+    Variables["terraform.tfvars"] --> VPC
+    Variables --> IAM
+    Variables --> EKS
+    Variables --> SM
+    Variables --> SEC
 
     EKS -- "OIDC Provider" --> IRSA["IRSA for Pods"]
     SM -- "read_policy_arn" --> IRSA

@@ -94,10 +94,10 @@ graph LR
         Node["Worker Nodes"]
     end
 
-    CP -- "Port 443 (HTTPS)" --> Node
-    Node -- "Port 443 (HTTPS)" --> CP
-    CP -- "Port 1025-65535<br/>(kubectl exec/logs)" --> Node
-    Node -- "All Ports<br/>(Pod-to-Pod)" --> Node
+    CP -- "Port 443" --> Node
+    Node -- "Port 443" --> CP
+    CP -- "Port 1025-65535" --> Node
+    Node -- "All Ports" --> Node
 
     class CP cp
     class Node ng

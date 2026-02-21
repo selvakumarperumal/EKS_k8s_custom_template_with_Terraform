@@ -215,7 +215,9 @@ graph TD
         Scheduler["Scheduler"]
         ETCD[("etcd Database")]
         
-        APIServer <--> Controller & Scheduler & ETCD
+        APIServer <--> Controller
+        APIServer <--> Scheduler
+        APIServer <--> ETCD
     end
     
     subgraph Security_Perimeter ["Security Integrations"]
@@ -276,9 +278,12 @@ graph TD
             PodA(("Application Pod A"))
             PodB(("Application Pod B"))
             
-            CNI -. "Native VPC IPs" .-> PodA & PodB
-            KProxy -. "Service Routing" .-> PodA & PodB
-            DNS -. "Service Discovery" .-> PodA & PodB
+            CNI -. "Native VPC IPs" .-> PodA
+            CNI -. "Native VPC IPs" .-> PodB
+            KProxy -. "Service Routing" .-> PodA
+            KProxy -. "Service Routing" .-> PodB
+            DNS -. "Service Discovery" .-> PodA
+            DNS -. "Service Discovery" .-> PodB
         end
     end
 
@@ -321,7 +326,8 @@ graph LR
         API_Secret[("Encrypted API<br/>Keys")]
         CustomKMS["Dedicated Secrets<br/>KMS Key"]
         
-        CustomKMS -. "Decrypts" .-> DB_Secret & API_Secret
+        CustomKMS -. "Decrypts" .-> DB_Secret
+        CustomKMS -. "Decrypts" .-> API_Secret
     end
 
     IRSA_Role ==> |"GetSecretValue"| DB_Secret
