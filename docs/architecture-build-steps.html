@@ -742,24 +742,46 @@ nsg -> nsg: "All ports\\npod-to-pod" { style.stroke: "#f1fa8c" }`,
     resources = ["secrets"]
   }
 }`,
-                        d2: `direction: down
+                        d2: `direction: left
 vars: { d2-config: { theme-id: 200 } }
-admin: kubectl { shape: person; style.fill: "#6272a4" }
+
+client: "📱 Application Clients" { shape: person; style.fill: "#6272a4" }
+admin: "💻 kubectl" { shape: rectangle; style.fill: "#44475a"; style.stroke: "#bd93f9" }
+
+elb: "🟣 Load Balancer" { shape: cylinder; style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
+
 aws: "AWS-Managed VPC" {
-  style.fill: "#44475a"; style.stroke: "#6272a4"
+  style.fill: "#282a36"; style.stroke: "#50fa7b"; style.stroke-width: 2
   cp: "EKS Control Plane" {
-    style.fill: "#282a36"; style.stroke: "#ffb86c"
+    shape: hexagon
+    style.fill: "#1e1f29"; style.stroke: "#ffb86c"; style.stroke-width: 2
     api: "API Server x3 AZs" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
     etcd: "etcd (KMS encrypted)" { shape: cylinder; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
-    api <-> etcd
+    api <-> etcd: Encrypted
   }
 }
+
 customer: "Customer VPC" {
-  style.fill: "#44475a"; style.stroke: "#bd93f9"
-  eni: "EKS-managed ENIs\\nin Private Subnets" { style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
+  style.fill: "#282a36"; style.stroke: "#50fa7b"; style.stroke-width: 2
+  eni: "EKS-managed ENI" { shape: oval; style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
+  
+  workers: "Worker Nodes" {
+    style.fill: "#44475a"; style.stroke: "#6272a4"
+    node1: "Node" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+    node2: "Node" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+    node3: "Node" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+  }
 }
-admin -> aws.cp.api: "HTTPS :443" { style.stroke: "#50fa7b" }
-aws.cp.api <-> customer.eni: "Private Link" { style.stroke: "#ff79c6" }`,
+
+# Connections
+admin <-> aws.cp: "HTTPS :443" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+aws.cp <-> customer.eni: "Private Link" { style.stroke: "#f8f8f2"; style.stroke-width: 2 }
+customer.eni <-> customer.workers.node1: "kubelet" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+customer.eni <-> customer.workers.node2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+
+client <-> elb: "HTTPS" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+elb <-> customer.workers.node3: "NodePort/TargetGroup" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+elb <-> customer.workers.node2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
                         note: "The longest step (~10 min). AWS provisions 3 redundant API servers across 3 AZs.",
                         explain: "AWS creates the control plane in their own VPC with <strong>3 redundant API servers</strong> across 3 AZs. It injects <strong>ENIs into your private subnets</strong> so nodes can reach the API privately. <code>encryption_config</code> encrypts all Kubernetes Secrets at rest. The 5 log types cover API calls, authentication, scheduling, and controller decisions."
                     },
