@@ -99,9 +99,25 @@ resource "aws_kms_alias" "eks" {
 # COST: ~$5-10/month depending on API request volume.
 # =============================================================================
 resource "aws_cloudwatch_log_group" "eks" {
-  count             = var.enable_cluster_logging ? 1 : 0
-  name              = "/aws/eks/${var.cluster_name}/cluster" # AWS naming convention
-  retention_in_days = 30                                     # Keep logs for 30 days (adjust per compliance needs)
+  count = var.enable_cluster_logging ? 1 : 0
+  name  = "/aws/eks/${var.cluster_name}/cluster" # ⚠️  MUST match AWS naming convention
+  # ┌───────────────────────────────────────────────────────────────────────────┐
+  # │ NAMING CONVENTION — HOW EKS FINDS THIS LOG GROUP:                       │
+  # │                                                                         │
+  # │   /aws/eks/<cluster-name>/cluster                                       │
+  # │            ↑                ↑                                           │
+  # │            │                └── Fixed suffix (always "cluster")          │
+  # │            └── Must match aws_eks_cluster.main.name (line ~308)         │
+  # │                                                                         │
+  # │ EKS does NOT accept a log_destination ARN like VPC Flow Logs do.        │
+  # │ Instead, when you set enabled_cluster_log_types on the cluster,         │
+  # │ EKS auto-discovers this log group by constructing the name internally.  │
+  # │                                                                         │
+  # │ If this log group doesn't exist → EKS auto-creates one with NO          │
+  # │ retention (logs kept FOREVER = expensive). We pre-create it to          │
+  # │ control retention (30 days) and tags.                                   │
+  # └───────────────────────────────────────────────────────────────────────────┘
+  retention_in_days = 30 # Keep logs for 30 days (adjust per compliance needs)
   # For production: consider 90 days or 1 year for compliance
 
   tags = var.tags
@@ -353,11 +369,25 @@ resource "aws_eks_cluster" "main" {
   # KUBE-NATIVE ALTERNATIVE: Falco + ELK/Loki
   # ---------------------------------------------------------------------------
   enabled_cluster_log_types = var.enable_cluster_logging ? ["api", "audit", "authenticator", "controllerManager", "scheduler"] : []
+  # ┌───────────────────────────────────────────────────────────────────────────┐
+  # │ CONNECTION TO CLOUDWATCH — NO EXPLICIT ARN NEEDED:                      │
+  # │                                                                         │
+  # │ Unlike VPC Flow Logs (which require a log_destination ARN), EKS uses    │
+  # │ a HARDCODED naming convention to auto-discover the log group:           │
+  # │                                                                         │
+  # │   /aws/eks/${var.cluster_name}/cluster                                  │
+  # │                                                                         │
+  # │ The cluster name here (line ~308) and the log group name (line ~103)    │
+  # │ MUST use the same var.cluster_name — that's how they match.             │
+  # │                                                                         │
+  # │ EKS internally constructs: "/aws/eks/" + cluster_name + "/cluster"      │
+  # │ and sends all 5 log types to that path.                                 │
+  # └───────────────────────────────────────────────────────────────────────────┘
 
-  # If logging is enabled, the CloudWatch log group must exist first.
-  # Otherwise EKS creates a default one with no retention (logs kept forever = expensive).
-  # When logging is disabled, the log group won't be created (count = 0),
-  # but depends_on still works correctly — it becomes a no-op dependency.
+  # depends_on ensures our log group (with 30-day retention) exists BEFORE
+  # the cluster starts. Otherwise there's a race condition — EKS might
+  # auto-create a default log group with infinite retention (= expensive).
+  # When logging is disabled (count=0), depends_on becomes a no-op.
   depends_on = [
     aws_cloudwatch_log_group.eks
   ]

@@ -245,13 +245,27 @@ resource "aws_nat_gateway" "main" {
 
 
 # =============================================================================
-# PUBLIC ROUTE TABLE
+# PUBLIC ROUTE TABLE — SINGLE (1 for ALL public subnets)
 # =============================================================================
 # A route table contains rules (routes) that determine where network traffic
 # goes. Each subnet must be associated with exactly one route table.
 #
 # The public route table has a route to the Internet Gateway (0.0.0.0/0 → IGW).
 # This is what makes subnets "public" — they can reach the internet directly.
+#
+# ┌───────────────────────────────────────────────────────────────────────────┐
+# │ WHY ONLY 1 PUBLIC ROUTE TABLE?                                          │
+# │                                                                         │
+# │ All public subnets route to the SAME Internet Gateway (IGW).            │
+# │ The IGW is a VPC-wide resource — AWS manages it as horizontally-scaled  │
+# │ and highly available across ALL AZs. There's always exactly 1 IGW per   │
+# │ VPC, and it never fails, so all public subnets can share one table:     │
+# │                                                                         │
+# │   Public RT ──→ 0.0.0.0/0 ──→ IGW (same for AZ-A, AZ-B, AZ-C)         │
+# │                                                                         │
+# │ Compare with PRIVATE route tables below — those may need 1 per AZ      │
+# │ because NAT Gateways are AZ-specific (see line ~319).                   │
+# └───────────────────────────────────────────────────────────────────────────┘
 #
 # NOTE: Every VPC has a "main" route table by default. We create explicit
 # route tables for clarity and to avoid relying on the implicit default.
@@ -304,17 +318,34 @@ resource "aws_route_table_association" "public" {
 
 
 # =============================================================================
-# PRIVATE ROUTE TABLE(S)
+# PRIVATE ROUTE TABLE(S) — 1 or MANY (depends on NAT Gateway mode)
 # =============================================================================
 # Private route tables route outbound traffic through the NAT Gateway
 # instead of the Internet Gateway. This allows private subnets to:
 #   ✅ Make outbound connections (pull images, install packages)
 #   ❌ Receive inbound connections from the internet
 #
-# COUNT LOGIC:
-#   - single_nat: 1 route table (all private subnets share it)
-#   - multi-AZ NAT: 1 route table per private subnet
-#     → Each routes to its own NAT for HA
+# ┌───────────────────────────────────────────────────────────────────────────┐
+# │ WHY MULTIPLE PRIVATE ROUTE TABLES (but only 1 public)?                  │
+# │                                                                         │
+# │ Unlike the IGW (VPC-wide, HA by design), each NAT Gateway lives in     │
+# │ ONE specific AZ. If that AZ goes down, the NAT goes down with it.      │
+# │                                                                         │
+# │ single_nat_gateway = true  (dev/staging — saves ~$66/mo):               │
+# │   1 NAT in AZ-A → 1 route table shared by all private subnets          │
+# │   ⚠️  If AZ-A fails, ALL private subnets lose internet access          │
+# │                                                                         │
+# │   Private RT ──→ 0.0.0.0/0 ──→ NAT-A                                   │
+# │     ↑ AZ-A, AZ-B, AZ-C all use this                                    │
+# │                                                                         │
+# │ single_nat_gateway = false (production — full HA):                      │
+# │   1 NAT per AZ → 1 route table per AZ, each pointing to its own NAT   │
+# │   ✅ If AZ-A fails, AZ-B and AZ-C continue working independently       │
+# │                                                                         │
+# │   Private RT-A ──→ 0.0.0.0/0 ──→ NAT-A  (AZ-A subnet uses this)       │
+# │   Private RT-B ──→ 0.0.0.0/0 ──→ NAT-B  (AZ-B subnet uses this)       │
+# │   Private RT-C ──→ 0.0.0.0/0 ──→ NAT-C  (AZ-C subnet uses this)       │
+# └───────────────────────────────────────────────────────────────────────────┘
 # =============================================================================
 resource "aws_route_table" "private" {
   count  = var.single_nat_gateway ? 1 : length(var.private_subnets)

@@ -7,177 +7,815 @@
   <title>EKS Module — Build Steps</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/dracula.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Fira+Code:wght@400;500&display=swap"
+    rel="stylesheet">
   <style>
-    * { margin: 0; padding: 0; box-sizing: border-box }
-    body { background: #282a36; color: #f8f8f2; font-family: 'Segoe UI', system-ui, sans-serif; line-height: 1.7; padding: 2rem }
-    .container { max-width: 1000px; margin: 0 auto }
-    h1 { color: #bd93f9; font-size: 2.2rem; text-align: center; margin-bottom: .5rem; animation: glow 2s ease-in-out infinite alternate }
-    @keyframes glow { from { text-shadow: 0 0 5px #bd93f9 } to { text-shadow: 0 0 20px #bd93f9, 0 0 40px #bd93f966 } }
-    .subtitle { color: #6272a4; text-align: center; margin-bottom: 3rem; font-size: 1.1rem }
-    .progress-bar { position: fixed; top: 0; left: 0; height: 3px; background: linear-gradient(90deg, #bd93f9, #ff79c6, #50fa7b); z-index: 999; transition: width .3s }
-    .phase { margin: 3rem 0; padding: 1.5rem; border-left: 4px solid #ffb86c; background: #1e1f29; border-radius: 0 8px 8px 0; opacity: 0; transform: translateY(30px); transition: all .6s ease }
-    .phase.visible { opacity: 1; transform: translateY(0) }
-    .phase h2 { color: #ff79c6; font-size: 1.5rem; margin-bottom: 1rem }
-    .step { margin: 2rem 0; padding: 1.5rem; background: #44475a; border-radius: 8px; border: 1px solid #6272a4; opacity: 0; transform: translateX(-20px); transition: all .5s ease }
-    .step.visible { opacity: 1; transform: translateX(0) }
-    .step:hover { border-color: #bd93f9; box-shadow: 0 0 15px #bd93f933 }
-    .step h3 { color: #50fa7b; font-size: 1.2rem; margin-bottom: .8rem }
-    .step h3 span { color: #6272a4; font-size: .9rem; font-weight: normal }
-    .step .note { color: #f1fa8c; font-size: .9rem; margin-top: .8rem; padding: .5rem .8rem; background: #282a36; border-radius: 4px; border-left: 3px solid #f1fa8c }
-    .step .explain { color: #f8f8f2; font-size: .9rem; margin-top: .8rem; padding: .8rem; background: #1e1f29; border-radius: 6px; border-left: 3px solid #8be9fd; line-height: 1.6 }
-    .step .explain strong { color: #ff79c6 }
-    .step .explain code { background: #44475a; padding: 1px 5px; border-radius: 3px; font-size: .85rem }
-    pre { background: #282a36 !important; border-radius: 6px; padding: 1rem !important; margin: .8rem 0; overflow-x: auto; border: 1px solid #6272a4 }
-    code { font-family: 'Fira Code', 'Consolas', monospace; font-size: .85rem }
-    .d2-diagram { margin: 1rem 0; min-height: 100px; display: flex; justify-content: center; align-items: center; background: #282a36; border-radius: 8px; padding: 1rem; border: 1px solid #6272a4; transition: all .8s ease }
-    .d2-diagram.loaded { animation: diagramFadeIn .8s ease }
-    @keyframes diagramFadeIn { from { opacity: 0; transform: scale(.95) translateY(10px) } to { opacity: 1; transform: scale(1) translateY(0) } }
-    .d2-diagram.loading { color: #6272a4; font-style: italic }
-    .d2-diagram svg { max-width: 100%; height: auto; transition: transform .4s ease }
-    .d2-diagram:hover svg { transform: scale(1.02) translateY(-3px); filter: drop-shadow(0 8px 20px #bd93f933) }
-    @keyframes flowData { to { stroke-dashoffset: -16 } }
-    .d2-diagram svg path[fill="none"][stroke]:not([stroke="none"]) { stroke-dasharray: 8 8 !important; animation: flowData 0.8s linear infinite }
-    .d2-diagram svg g { transform-origin: center; transition: transform 0.2s ease, filter 0.2s ease }
-    .d2-diagram svg g:hover { filter: drop-shadow(0 0 8px #bd93f988) }
-    .d2-diagram:hover { border-color: #ff79c6; box-shadow: 0 0 20px #ff79c622 }
-    .summary { margin: 3rem 0; opacity: 0; transform: translateY(30px); transition: all .6s ease }
-    .summary.visible { opacity: 1; transform: translateY(0) }
-    .summary table { width: 100%; border-collapse: collapse; font-size: .9rem }
-    .summary th { background: #bd93f9; color: #282a36; padding: .6rem; text-align: left }
-    .summary td { padding: .5rem .6rem; border-bottom: 1px solid #44475a; transition: background .3s }
-    .summary tr:hover { background: #44475a }
-    .highlight-row td { color: #ff79c6; font-weight: bold }
-    .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: .75rem; font-weight: bold }
-    .badge-enc { background: #ff5555; color: #f8f8f2 }
-    .badge-sg { background: #8be9fd; color: #282a36 }
-    .badge-core { background: #ffb86c; color: #282a36 }
-    .badge-addon { background: #50fa7b; color: #282a36 }
-    .badge-node { background: #bd93f9; color: #282a36 }
-    .var-table { width: 100%; border-collapse: collapse; font-size: .85rem; margin: 1rem 0 }
-    .var-table th { background: #6272a4; color: #f8f8f2; padding: .5rem .6rem; text-align: left }
-    .var-table td { padding: .4rem .6rem; border-bottom: 1px solid #44475a; color: #f8f8f2 }
-    .var-table tr:hover { background: #44475a }
-    .var-table code { background: #282a36; padding: 1px 5px; border-radius: 3px; font-size: .8rem; color: #50fa7b }
-    .step-number { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: #bd93f9; color: #282a36; font-weight: bold; font-size: .8rem; margin-right: 8px }
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    body {
+      background: #282a36;
+      color: #f8f8f2;
+      font-family: 'Inter', system-ui, sans-serif;
+      line-height: 1.7;
+      overflow-x: hidden
+    }
+
+    .container {
+      max-width: 1060px;
+      margin: 0 auto;
+      padding: 2rem;
+      position: relative;
+      z-index: 2
+    }
+
+    canvas#particles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none
+    }
+
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #bd93f9, #ff79c6, #50fa7b, #f1fa8c);
+      z-index: 999;
+      transition: width .2s;
+      box-shadow: 0 0 10px #bd93f9
+    }
+
+    h1 {
+      color: #bd93f9;
+      font-size: 2.6rem;
+      text-align: center;
+      margin-bottom: .5rem;
+      font-weight: 700;
+      letter-spacing: -1px
+    }
+
+    .hero-glow {
+      animation: glow 2s ease-in-out infinite alternate
+    }
+
+    @keyframes glow {
+      from {
+        text-shadow: 0 0 5px #bd93f9
+      }
+
+      to {
+        text-shadow: 0 0 20px #bd93f9, 0 0 40px #bd93f966
+      }
+    }
+
+    .subtitle {
+      color: #6272a4;
+      text-align: center;
+      margin-bottom: 1rem;
+      font-size: 1.1rem
+    }
+
+    .toc {
+      background: #1e1f29;
+      border: 1px solid #44475a;
+      border-radius: 12px;
+      padding: 1.2rem 1.5rem;
+      margin-bottom: 2.5rem
+    }
+
+    .toc h3 {
+      color: #ff79c6;
+      margin-bottom: .6rem;
+      font-size: 1rem
+    }
+
+    .toc a {
+      color: #8be9fd;
+      text-decoration: none;
+      display: inline-block;
+      padding: 3px 10px;
+      margin: 3px;
+      border-radius: 20px;
+      font-size: .82rem;
+      border: 1px solid #44475a;
+      transition: all .3s
+    }
+
+    .toc a:hover {
+      background: #44475a;
+      border-color: #bd93f9;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px #00000044
+    }
+
+    .overview {
+      background: linear-gradient(135deg, #1e1f29 0%, #282a36 100%);
+      border: 1px solid #44475a;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 3rem;
+      position: relative;
+      overflow: hidden
+    }
+
+    .overview::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle, #bd93f922 0%, transparent 70%);
+      pointer-events: none
+    }
+
+    .overview h3 {
+      color: #ffb86c;
+      margin-bottom: .5rem;
+      font-size: 1.2rem
+    }
+
+    .overview ul {
+      margin-left: 1.5rem;
+      margin-top: .5rem
+    }
+
+    .overview li {
+      margin: .3rem 0
+    }
+
+    .overview li strong {
+      color: #ff79c6
+    }
+
+    .phase {
+      margin: 3rem 0;
+      padding: 1.5rem;
+      border-left: 4px solid #ffb86c;
+      background: #1e1f29;
+      border-radius: 0 12px 12px 0;
+      position: relative
+    }
+
+    .phase h2 {
+      color: #ff79c6;
+      font-size: 1.5rem;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: .5rem
+    }
+
+    .phase-num {
+      background: #ff79c6;
+      color: #282a36;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: .9rem;
+      flex-shrink: 0
+    }
+
+    .step {
+      margin: 2rem 0;
+      padding: 1.5rem;
+      background: #44475a;
+      border-radius: 10px;
+      border: 1px solid #6272a4;
+      position: relative;
+      transition: all .4s cubic-bezier(.22, 1, .36, 1)
+    }
+
+    .step:hover {
+      border-color: #bd93f9;
+      box-shadow: 0 8px 30px #bd93f922;
+      transform: translateY(-3px)
+    }
+
+    .step h3 {
+      color: #50fa7b;
+      font-size: 1.15rem;
+      margin-bottom: .8rem
+    }
+
+    .step h3 span {
+      color: #6272a4;
+      font-size: .85rem;
+      font-weight: 400
+    }
+
+    .note {
+      color: #f1fa8c;
+      font-size: .88rem;
+      margin-top: .8rem;
+      padding: .6rem .9rem;
+      background: #282a36;
+      border-radius: 6px;
+      border-left: 3px solid #f1fa8c
+    }
+
+    .explain {
+      color: #f8f8f2;
+      font-size: .88rem;
+      margin-top: .8rem;
+      padding: .8rem;
+      background: #1e1f29;
+      border-radius: 8px;
+      border-left: 3px solid #8be9fd;
+      line-height: 1.7
+    }
+
+    .explain strong {
+      color: #ff79c6
+    }
+
+    .explain code {
+      background: #44475a;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: .82rem;
+      font-family: 'Fira Code', monospace
+    }
+
+    .warning {
+      color: #ff5555;
+      font-size: .88rem;
+      margin-top: .8rem;
+      padding: .6rem .9rem;
+      background: #282a36;
+      border-radius: 6px;
+      border-left: 3px solid #ff5555
+    }
+
+    pre {
+      background: #282a36 !important;
+      border-radius: 8px;
+      padding: 1rem !important;
+      margin: .8rem 0;
+      overflow-x: auto;
+      border: 1px solid #6272a4;
+      position: relative
+    }
+
+    pre .copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: #6272a4;
+      color: #f8f8f2;
+      border: none;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: .75rem;
+      opacity: 0;
+      transition: opacity .3s
+    }
+
+    pre:hover .copy-btn {
+      opacity: 1
+    }
+
+    pre .copy-btn:hover {
+      background: #bd93f9
+    }
+
+    code {
+      font-family: 'Fira Code', monospace;
+      font-size: .82rem
+    }
+
+    .d2-diagram {
+      margin: 1rem 0;
+      min-height: 100px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #282a36;
+      border-radius: 10px;
+      padding: 1rem;
+      border: 1px solid #6272a4;
+      transition: all .5s
+    }
+
+    .d2-diagram.loaded {
+      animation: dIn .8s ease
+    }
+
+    @keyframes dIn {
+      from {
+        opacity: 0;
+        transform: scale(.95) translateY(10px)
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1) translateY(0)
+      }
+    }
+
+    .d2-diagram.loading {
+      color: #6272a4;
+      font-style: italic
+    }
+
+    .d2-diagram svg {
+      max-width: 100%;
+      height: auto;
+      transition: transform .4s
+    }
+
+    .d2-diagram:hover svg {
+      transform: scale(1.02);
+      filter: drop-shadow(0 8px 20px #bd93f933)
+    }
+
+    @keyframes flowData {
+      to {
+        stroke-dashoffset: -16
+      }
+    }
+
+    .d2-diagram svg path[fill="none"][stroke]:not([stroke="none"]) {
+      stroke-dasharray: 8 8 !important;
+      animation: flowData .8s linear infinite
+    }
+
+    .d2-diagram:hover {
+      border-color: #ff79c6;
+      box-shadow: 0 0 20px #ff79c622
+    }
+
+    .summary {
+      margin: 3rem 0
+    }
+
+    .summary table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .88rem
+    }
+
+    .summary th {
+      background: #bd93f9;
+      color: #282a36;
+      padding: .6rem;
+      text-align: left;
+      font-weight: 600
+    }
+
+    .summary td {
+      padding: .5rem .6rem;
+      border-bottom: 1px solid #44475a;
+      transition: background .3s
+    }
+
+    .summary tr:hover {
+      background: #44475a
+    }
+
+    .hl td {
+      color: #ff79c6;
+      font-weight: bold
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-size: .72rem;
+      font-weight: 600;
+      letter-spacing: .5px
+    }
+
+    .badge-enc {
+      background: #ff5555;
+      color: #f8f8f2
+    }
+
+    .badge-sg {
+      background: #8be9fd;
+      color: #282a36
+    }
+
+    .badge-core {
+      background: #ffb86c;
+      color: #282a36
+    }
+
+    .badge-addon {
+      background: #50fa7b;
+      color: #282a36
+    }
+
+    .badge-node {
+      background: #bd93f9;
+      color: #282a36
+    }
+
+    .badge-oidc {
+      background: #ff79c6;
+      color: #f8f8f2
+    }
+
+    .var-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .82rem;
+      margin: 1rem 0
+    }
+
+    .var-table th {
+      background: #6272a4;
+      color: #f8f8f2;
+      padding: .5rem .6rem;
+      text-align: left
+    }
+
+    .var-table td {
+      padding: .4rem .6rem;
+      border-bottom: 1px solid #44475a;
+      color: #f8f8f2
+    }
+
+    .var-table tr:hover {
+      background: #44475a
+    }
+
+    .var-table code {
+      background: #282a36;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: .78rem;
+      color: #50fa7b;
+      font-family: 'Fira Code', monospace
+    }
+
+    .sn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #bd93f9, #ff79c6);
+      color: #f8f8f2;
+      font-weight: 700;
+      font-size: .8rem;
+      margin-right: 8px;
+      box-shadow: 0 2px 8px #bd93f944
+    }
+
+    .dep-chain {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      flex-wrap: wrap;
+      margin: 1rem 0;
+      padding: .8rem;
+      background: #282a36;
+      border-radius: 8px;
+      border: 1px solid #44475a
+    }
+
+    .dep-chain .dep-item {
+      background: #44475a;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: .8rem;
+      white-space: nowrap
+    }
+
+    .dep-chain .dep-arrow {
+      color: #bd93f9;
+      font-size: 1.2rem
+    }
+
+    .timeline {
+      border-left: 3px solid #6272a4;
+      margin: 1rem 0 1rem 1rem;
+      padding-left: 1.5rem
+    }
+
+    .timeline .tl-item {
+      position: relative;
+      margin-bottom: 1rem;
+      padding: .5rem .8rem;
+      background: #282a36;
+      border-radius: 6px;
+      font-size: .85rem
+    }
+
+    .timeline .tl-item::before {
+      content: '';
+      position: absolute;
+      left: -1.85rem;
+      top: .7rem;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #bd93f9;
+      border: 2px solid #282a36
+    }
+
+    .back-top {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      background: #bd93f9;
+      color: #282a36;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      font-size: 1.2rem;
+      z-index: 99;
+      opacity: 0;
+      transition: all .3s;
+      box-shadow: 0 4px 15px #00000044
+    }
+
+    .back-top.show {
+      opacity: 1
+    }
+
+    .back-top:hover {
+      transform: scale(1.1);
+      background: #ff79c6
+    }
+
+    .k8s-purpose {
+      margin: .8rem 0;
+      padding: .8rem 1rem;
+      background: linear-gradient(135deg, #1a1b26, #282a36);
+      border: 1px solid #50fa7b44;
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden
+    }
+
+    .k8s-purpose::before {
+      content: '☸';
+      position: absolute;
+      right: 12px;
+      top: 8px;
+      font-size: 1.8rem;
+      opacity: .15
+    }
+
+    .k8s-purpose h4 {
+      color: #50fa7b;
+      font-size: .88rem;
+      margin-bottom: .4rem;
+      display: flex;
+      align-items: center;
+      gap: .4rem
+    }
+
+    .k8s-purpose p {
+      color: #ccc;
+      font-size: .84rem;
+      line-height: 1.6
+    }
+
+    .k8s-purpose strong {
+      color: #ff79c6
+    }
+
+    .line-detail {
+      margin: .8rem 0;
+      border: 1px solid #44475a;
+      border-radius: 8px;
+      overflow: hidden
+    }
+
+    .line-detail summary {
+      cursor: pointer;
+      padding: .6rem .9rem;
+      background: #1e1f29;
+      color: #8be9fd;
+      font-size: .85rem;
+      font-weight: 600;
+      user-select: none;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      transition: background .3s
+    }
+
+    .line-detail summary:hover {
+      background: #2a2b3d
+    }
+
+    .line-detail summary::before {
+      content: '▶';
+      font-size: .7rem;
+      transition: transform .3s;
+      color: #bd93f9
+    }
+
+    .line-detail[open] summary::before {
+      transform: rotate(90deg)
+    }
+
+    .line-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .8rem
+    }
+
+    .line-table td {
+      padding: .4rem .6rem;
+      border-bottom: 1px solid #333;
+      vertical-align: top
+    }
+
+    .line-table td:first-child {
+      color: #50fa7b;
+      font-family: 'Fira Code', monospace;
+      white-space: nowrap;
+      width: 35%;
+      background: #1e1f29
+    }
+
+    .line-table td:last-child {
+      color: #ddd;
+      line-height: 1.5
+    }
+
+    .line-table tr:hover {
+      background: #44475a33
+    }
+
+    .line-table strong {
+      color: #ff79c6
+    }
+
+    .line-table code {
+      background: #44475a;
+      padding: 1px 4px;
+      border-radius: 3px;
+      font-size: .78rem;
+      font-family: 'Fira Code', monospace
+    }
+
+    @keyframes shimmer {
+      0% {
+        background-position: -200% 0
+      }
+
+      100% {
+        background-position: 200% 0
+      }
+    }
+
+    .step h3 .sn {
+      animation: pulse 2s ease-in-out infinite
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 #bd93f944
+      }
+
+      50% {
+        box-shadow: 0 0 0 8px #bd93f900
+      }
+    }
+
+    .phase {
+      transition: all .6s cubic-bezier(.22, 1, .36, 1)
+    }
+
+    .phase:hover {
+      border-left-color: #ff79c6
+    }
+
+    .d2-diagram {
+      transition: all .5s cubic-bezier(.22, 1, .36, 1)
+    }
+
+    .explain,
+    .note,
+    .warning,
+    .k8s-purpose,
+    .line-detail {
+      transition: all .3s ease
+    }
   </style>
 </head>
 
 <body>
+  <canvas id="particles"></canvas>
+  <div class="progress-bar" id="progressBar"></div>
+  <button class="back-top" id="backTop" onclick="window.scrollTo({top:0,behavior:'smooth'})">↑</button>
   <div class="container">
-    <div class="progress-bar" id="progressBar"></div>
-    <h1>⬡ EKS Module</h1>
-    <p class="subtitle">The core Kubernetes cluster — control plane, security groups, OIDC, add-ons, and managed node groups</p>
+    <h1 class="hero-glow">⬡ EKS Module — Deep Dive</h1>
+    <p class="subtitle">The core Kubernetes cluster — every resource explained with architecture diagrams</p>
 
-    <div class="explain"
-      style="margin-bottom: 3rem; background: #1e1f29; padding: 1.5rem; border-left: 4px solid #ffb86c; border-radius: 8px;">
-      <h3 style="color: #ffb86c; margin-bottom: 0.5rem;">⬡ Module Overview</h3>
-      This is the <strong>largest and most critical module</strong>. It provisions the EKS cluster, all security groups, OIDC provider for IRSA, managed add-ons, and auto-scaling node groups.
-      <ul style="margin-left: 1.5rem; margin-top: 0.5rem; color: #f8f8f2;">
-        <li><strong>KMS Key:</strong> Envelope encryption for Kubernetes secrets in etcd</li>
-        <li><strong>Security Groups:</strong> Cluster SG + Node SG with minimal inter-component rules</li>
-        <li><strong>EKS Cluster:</strong> Managed control plane with 3 redundant API servers (~10 min)</li>
-        <li><strong>OIDC Provider:</strong> Enables IRSA — per-pod IAM via ServiceAccounts</li>
-        <li><strong>Add-ons:</strong> VPC CNI, kube-proxy, CoreDNS (essential cluster services)</li>
-        <li><strong>Launch Templates:</strong> IMDSv2 enforcement, gp3 encrypted EBS, no public IPs</li>
-        <li><strong>Node Groups:</strong> ON_DEMAND + SPOT with autoscaler-safe lifecycle rules</li>
+    <nav class="toc" id="toc">
+      <h3>📑 Jump To</h3>
+    </nav>
+
+    <div class="overview">
+      <h3>⬡ Module Overview — What Gets Created</h3>
+      <p>This is the <strong>largest and most critical module</strong> (~760 lines). It provisions the entire EKS
+        cluster with all dependencies in the correct order.</p>
+      <div class="dep-chain">
+        <span class="dep-item">🔑 KMS Key</span><span class="dep-arrow">→</span>
+        <span class="dep-item">📊 CloudWatch</span><span class="dep-arrow">→</span>
+        <span class="dep-item">🛡️ Security Groups</span><span class="dep-arrow">→</span>
+        <span class="dep-item" style="background:#ffb86c;color:#282a36;font-weight:600">⬡ EKS Cluster (~10
+          min)</span><span class="dep-arrow">→</span>
+        <span class="dep-item">🔐 OIDC</span><span class="dep-arrow">→</span>
+        <span class="dep-item">📦 Add-ons</span><span class="dep-arrow">→</span>
+        <span class="dep-item">🖥️ Nodes</span>
+      </div>
+      <ul>
+        <li><strong>KMS Key:</strong> Envelope encryption for Kubernetes secrets in etcd — annual auto-rotation</li>
+        <li><strong>CloudWatch Logs:</strong> Optional control plane logging (api, audit, authenticator,
+          controllerManager, scheduler)</li>
+        <li><strong>Security Groups:</strong> Cluster SG + Node SG with 3 inter-component rules (minimal blast radius)
+        </li>
+        <li><strong>EKS Cluster:</strong> Managed control plane — 3 redundant API servers across 3 AZs</li>
+        <li><strong>OIDC Provider:</strong> Enables IRSA — per-pod IAM via ServiceAccounts (eliminates shared node role)
+        </li>
+        <li><strong>Add-ons:</strong> VPC CNI (real VPC IPs for pods), kube-proxy (iptables routing), CoreDNS (service
+          discovery)</li>
+        <li><strong>Launch Templates:</strong> IMDSv2 enforced, gp3 encrypted EBS (3000 IOPS), no public IPs, detailed
+          monitoring</li>
+        <li><strong>Node Groups:</strong> ON_DEMAND (reliable) + SPOT (cost savings) with autoscaler-safe lifecycle
+          rules</li>
       </ul>
-      <em style="color: #6272a4; display: block; margin-top: 0.5rem;">📂 Source: <code>modules/eks/main.tf</code> · <code>variables.tf</code> · <code>outputs.tf</code></em>
+      <em style="color:#6272a4;display:block;margin-top:.5rem">📂 Source: <code>modules/eks/main.tf</code> ·
+        <code>variables.tf</code> · <code>outputs.tf</code> · Total deploy time: ~17 min</em>
     </div>
 
     <div id="content"></div>
-
-    <div class="summary">
-      <h2 style="color:#bd93f9;margin-bottom:1rem">📥 Input Variables</h2>
-      <table class="var-table">
-        <thead><tr><th>Variable</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
-        <tbody>
-          <tr><td><code>cluster_name</code></td><td><code>string</code></td><td>—</td><td>Name of the EKS cluster</td></tr>
-          <tr><td><code>kubernetes_version</code></td><td><code>string</code></td><td><code>"1.31"</code></td><td>Kubernetes version (minor only, e.g., "1.31")</td></tr>
-          <tr><td><code>vpc_id</code></td><td><code>string</code></td><td>—</td><td>VPC ID from <code>module.vpc.vpc_id</code></td></tr>
-          <tr><td><code>subnet_ids</code></td><td><code>list(string)</code></td><td>—</td><td>Private subnet IDs from <code>module.vpc.private_subnets</code></td></tr>
-          <tr><td><code>cluster_role_arn</code></td><td><code>string</code></td><td>—</td><td>Cluster IAM role ARN from <code>module.iam</code></td></tr>
-          <tr><td><code>node_role_arn</code></td><td><code>string</code></td><td>—</td><td>Node group IAM role ARN from <code>module.iam</code></td></tr>
-          <tr><td><code>endpoint_public_access</code></td><td><code>bool</code></td><td><code>true</code></td><td>Enable public API server endpoint</td></tr>
-          <tr><td><code>endpoint_private_access</code></td><td><code>bool</code></td><td><code>true</code></td><td>Enable private API server endpoint (always recommended)</td></tr>
-          <tr><td><code>public_access_cidrs</code></td><td><code>list(string)</code></td><td><code>["0.0.0.0/0"]</code></td><td>CIDRs allowed for public API access ⚠️</td></tr>
-          <tr><td><code>node_groups</code></td><td><code>map(object)</code></td><td>—</td><td>Map of node group configs (instance types, scaling, taints, etc.)</td></tr>
-          <tr><td><code>enable_irsa</code></td><td><code>bool</code></td><td><code>true</code></td><td>Enable OIDC provider for IAM Roles for Service Accounts</td></tr>
-          <tr><td><code>enable_cluster_logging</code></td><td><code>bool</code></td><td><code>false</code></td><td>Enable control plane logging to CloudWatch ($)</td></tr>
-          <tr><td><code>enable_detailed_monitoring</code></td><td><code>bool</code></td><td><code>false</code></td><td>Enable 1-min EC2 monitoring ($)</td></tr>
-          <tr><td><code>coredns_version</code></td><td><code>string</code></td><td><code>""</code></td><td>CoreDNS addon version (empty = latest)</td></tr>
-          <tr><td><code>kube_proxy_version</code></td><td><code>string</code></td><td><code>""</code></td><td>kube-proxy addon version (empty = latest)</td></tr>
-          <tr><td><code>vpc_cni_version</code></td><td><code>string</code></td><td><code>""</code></td><td>VPC CNI addon version (empty = latest)</td></tr>
-          <tr><td><code>tags</code></td><td><code>map(string)</code></td><td><code>{}</code></td><td>Tags to apply to all resources</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="summary">
-      <h2 style="color:#bd93f9;margin-bottom:1rem">📤 Outputs</h2>
-      <table class="var-table">
-        <thead><tr><th>Output</th><th>Description</th></tr></thead>
-        <tbody>
-          <tr><td><code>cluster_id</code></td><td>Unique ID of the EKS cluster</td></tr>
-          <tr><td><code>cluster_name</code></td><td>Name of the EKS cluster</td></tr>
-          <tr><td><code>cluster_arn</code></td><td>ARN of the EKS cluster</td></tr>
-          <tr><td><code>cluster_endpoint</code></td><td>HTTPS endpoint URL for the Kubernetes API server</td></tr>
-          <tr><td><code>cluster_version</code></td><td>Kubernetes version running on the cluster</td></tr>
-          <tr><td><code>cluster_certificate_authority_data</code></td><td>Base64-encoded CA cert (sensitive — for kubectl trust)</td></tr>
-          <tr><td><code>cluster_security_group_id</code></td><td>Security group ID for the control plane</td></tr>
-          <tr><td><code>node_security_group_id</code></td><td>Security group ID for worker nodes</td></tr>
-          <tr><td><code>kms_key_id</code> / <code>kms_key_arn</code></td><td>KMS key for cluster secrets encryption</td></tr>
-          <tr><td><code>cluster_oidc_issuer_url</code></td><td>OIDC issuer URL for IRSA role creation</td></tr>
-          <tr><td><code>oidc_provider_arn</code></td><td>ARN of the OIDC provider for IRSA</td></tr>
-          <tr><td><code>cloudwatch_log_group_name</code></td><td>CloudWatch log group for control plane logs</td></tr>
-          <tr><td><code>node_groups</code></td><td>Map of all created node group resources</td></tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="summary">
-      <h2 style="color:#bd93f9;margin-bottom:1rem">Build Summary</h2>
-      <table>
-        <thead><tr><th>Step</th><th>Resource</th><th>Category</th><th>Time</th></tr></thead>
-        <tbody id="summary-table"></tbody>
-      </table>
-    </div>
   </div>
 
   <script>
+    // ─── Particle Background ───
+    (function () {
+      const c = document.getElementById('particles'), ctx = c.getContext('2d'); let w, h, pts = []; function resize() { w = c.width = innerWidth; h = c.height = innerHeight; pts = []; for (let i = 0; i < 60; i++)pts.push({ x: Math.random() * w, y: Math.random() * h, r: Math.random() * 2 + .5, dx: (Math.random() - .5) * .4, dy: (Math.random() - .5) * .4, o: Math.random() * .3 + .1 }) }
+      resize(); window.addEventListener('resize', resize); function draw() { ctx.clearRect(0, 0, w, h); pts.forEach(p => { p.x += p.dx; p.y += p.dy; if (p.x < 0 || p.x > w) p.dx *= -1; if (p.y < 0 || p.y > h) p.dy *= -1; ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fillStyle = `rgba(189,147,249,${p.o})`; ctx.fill() }); for (let i = 0; i < pts.length; i++)for (let j = i + 1; j < pts.length; j++) { const d = Math.hypot(pts[i].x - pts[j].x, pts[i].y - pts[j].y); if (d < 120) { ctx.beginPath(); ctx.moveTo(pts[i].x, pts[i].y); ctx.lineTo(pts[j].x, pts[j].y); ctx.strokeStyle = `rgba(189,147,249,${.08 * (1 - d / 120)})`; ctx.stroke() } } requestAnimationFrame(draw) } draw()
+    })();
+
+    // ─── Steps Data ───
     const STEPS = [
       {
-        phase: "Encryption & Logging", steps: [
+        phase: "Phase 1 — Encryption & Logging", id: "encryption", steps: [
           {
-            title: "Create KMS Key", cat: "enc", time: "~10s",
+            title: "Create KMS Key + Alias", cat: "enc", time: "~10s",
             hcl: `resource "aws_kms_key" "eks" {
   description             = "KMS key for EKS cluster \${var.cluster_name} encryption"
-  deletion_window_in_days = 7                # 7-day grace period before permanent deletion
-  enable_key_rotation     = true             # Auto-rotate annually
+  deletion_window_in_days = 7        # 7-day grace period before permanent deletion
+  enable_key_rotation     = true     # Auto-rotate key material annually
+  tags = merge(var.tags, { Name = "\${var.cluster_name}-eks-kms" })
 }
 
 resource "aws_kms_alias" "eks" {
-  name          = "alias/\${var.cluster_name}-eks"
-  target_key_id = aws_kms_key.eks.key_id
+  name          = "alias/\${var.cluster_name}-eks"   # Human-friendly name
+  target_key_id = aws_kms_key.eks.key_id             # Points to actual key
 }`,
             d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
-kms: "🔑 KMS Master Key\\n(Envelope Encryption)" { shape: hexagon; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
-dek: "🎫 Data Encryption Key\\n(Generated by KMS)" { shape: document; style.fill: "#f1fa8c"; style.font-color: "#282a36" }
+kms: "🔑 KMS Master Key\\n(Auto-rotates Annually)" { shape: hexagon; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
+dek: "🎫 DEK (Data Encryption Key)\\n(Generated per-secret)" { shape: document; style.fill: "#f1fa8c"; style.font-color: "#282a36" }
 k8s: "Kubernetes Secrets" {
   style.fill: "#1e1f29"; style.stroke: "#bd93f9"
-  etcd: "🗄️ etcd Database" { shape: cylinder; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+  etcd: "🗄️ etcd Database\\n(Encrypted at rest)" { shape: cylinder; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
 }
 kms -> dek: "1. Creates & Encrypts DEK" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
-dek -> k8s.etcd: "2. Encrypts Secrets Data" { style.stroke: "#f1fa8c"; style.stroke-dash: 5 }`,
-            note: "Envelope encryption: KMS encrypts the DEK, not the secret directly.",
-            explain: "Without KMS, Kubernetes secrets in etcd are just <strong>base64 encoded</strong> (easily decoded). With envelope encryption, each secret gets a unique <strong>Data Encryption Key (DEK)</strong>, and the KMS master key encrypts the DEK. Even with direct etcd access, secrets remain unreadable without the KMS key. <code>enable_key_rotation</code> rotates the key material annually."
+dek -> k8s.etcd: "2. DEK encrypts secret data" { style.stroke: "#f1fa8c"; style.stroke-dash: 5 }`,
+            note: "Envelope encryption: KMS encrypts the DEK, not the secret directly. This limits KMS API calls.",
+            explain: "Without KMS, Kubernetes secrets in etcd are stored <strong>base64 encoded</strong> — easily decoded by anyone with etcd access. With envelope encryption: <strong>Step 1:</strong> KMS generates a unique <strong>Data Encryption Key (DEK)</strong> for each secret. <strong>Step 2:</strong> The DEK encrypts the actual secret data. <strong>Step 3:</strong> KMS encrypts the DEK itself (key-encrypting-key). Both the encrypted secret and encrypted DEK are stored together in etcd. <code>enable_key_rotation = true</code> rotates the key material annually — old data remains decryptable. <code>deletion_window_in_days = 7</code> prevents accidental permanent key destruction."
           },
           {
             title: "Create CloudWatch Log Group (Optional)", cat: "enc", time: "~5s",
             hcl: `resource "aws_cloudwatch_log_group" "eks" {
   count             = var.enable_cluster_logging ? 1 : 0
-  name              = "/aws/eks/\${var.cluster_name}/cluster"
-  retention_in_days = 30     # Keep logs for 30 days (90+ for production/compliance)
+  name              = "/aws/eks/\${var.cluster_name}/cluster"  # ⚠️ Must match EKS naming convention
+  retention_in_days = 30                                       # Keep logs 30 days
   tags              = var.tags
 }`,
             d2: `direction: right
@@ -192,257 +830,427 @@ cw: "☁️ CloudWatch Logs" {
   t5: "scheduler — Pod placement" { shape: rectangle; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
 }
 eks -> cw: "5 Log Types" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
-            note: "All 5 log types: api, audit, authenticator, controllerManager, scheduler.",
-            explain: "Pre-creating the log group lets us control <strong>retention period</strong>, <strong>encryption</strong>, and <strong>access permissions</strong>. The 5 log types cover: API calls (what happened?), authentication (who tried?), scheduling (where did pods go?), and controller decisions (why did replicas change?)."
-          },
+            note: "EKS auto-discovers this log group by naming convention: /aws/eks/<cluster-name>/cluster",
+            explain: "<strong>Why pre-create?</strong> If you skip this, EKS auto-creates a log group with <strong>infinite retention</strong> (no expiry = expensive). By pre-creating, we control: <strong>retention</strong> (30 days), <strong>tags</strong>, and <strong>encryption</strong>. The log group name MUST be <code>/aws/eks/&lt;cluster-name&gt;/cluster</code> — EKS finds it by <strong>hardcoded naming convention</strong>, not by ARN. The 5 log types: <strong>api</strong> (what happened?), <strong>audit</strong> (compliance trail), <strong>authenticator</strong> (who logged in?), <strong>controllerManager</strong> (scaling decisions), <strong>scheduler</strong> (pod placement). Cost: ~$5-10/month.",
+            warning: "Disabled by default (enable_cluster_logging = false). Enable for production/compliance."
+          }
         ]
       },
       {
-        phase: "Security Groups (Network Access Control)", steps: [
+        phase: "Phase 2 — Security Groups (Network Firewall)", id: "security-groups", steps: [
           {
             title: "Create Cluster + Node Security Groups", cat: "sg", time: "~10s",
             hcl: `resource "aws_security_group" "cluster" {
   name_prefix = "\${var.cluster_name}-cluster-sg-"
   description = "Security group for EKS cluster control plane"
   vpc_id      = var.vpc_id
+  egress { from_port = 0; to_port = 0; protocol = "-1"; cidr_blocks = ["0.0.0.0/0"]
+           description = "Allow all outbound traffic" }
   lifecycle { create_before_destroy = true }
-  tags        = var.tags
+  tags = merge(var.tags, { Name = "\${var.cluster_name}-cluster-sg" })
 }
 
 resource "aws_security_group" "node" {
   name_prefix = "\${var.cluster_name}-node-sg-"
   description = "Security group for EKS worker nodes"
   vpc_id      = var.vpc_id
-  egress { from_port = 0; to_port = 0; protocol = "-1"; cidr_blocks = ["0.0.0.0/0"] }
+  egress { from_port = 0; to_port = 0; protocol = "-1"; cidr_blocks = ["0.0.0.0/0"]
+           description = "Allow all outbound traffic" }
   lifecycle { create_before_destroy = true }
-  tags = merge(var.tags, { "kubernetes.io/cluster/\${var.cluster_name}" = "owned" })
+  tags = merge(var.tags, {
+    Name = "\${var.cluster_name}-node-sg"
+    "kubernetes.io/cluster/\${var.cluster_name}" = "owned"  # LB Controller discovery
+  })
 }`,
             d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
 csg: "🛡️ Cluster SG\\n(Control Plane ENIs)" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
-nsg: "🛡️ Node SG\\n(EC2 Workers)" { shape: hexagon; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+nsg: "🛡️ Node SG\\n(EC2 Worker Instances)" { shape: hexagon; style.fill: "#8be9fd"; style.font-color: "#282a36" }
 csg <-> nsg: "Controlled Communication" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
-            note: "create_before_destroy prevents downtime during SG updates.",
-            explain: "Two security groups define the network boundary: the <strong>Cluster SG</strong> protects the EKS-managed ENIs in your VPC, and the <strong>Node SG</strong> protects EC2 worker instances. The node SG has the <code>kubernetes.io/cluster</code> tag so the AWS LB Controller can discover it for target groups."
+            note: "create_before_destroy prevents downtime — new SG is created before old one is destroyed.",
+            explain: "Two security groups define the <strong>network boundary</strong>: <strong>Cluster SG</strong> protects EKS-managed ENIs (Elastic Network Interfaces) in your VPC for the API server. <strong>Node SG</strong> protects EC2 worker instances. Both allow <strong>all outbound</strong> (nodes need to pull images, call AWS APIs, etc). The Node SG has tag <code>kubernetes.io/cluster/&lt;name&gt; = owned</code> — this tells the <strong>AWS Load Balancer Controller</strong> which SG to discover for target groups. <code>name_prefix</code> adds a random suffix for uniqueness during replacements."
           },
           {
-            title: "Create Security Group Rules", cat: "sg", time: "~5s",
-            hcl: `# Nodes → Cluster: kubelet heartbeats, pod status, logs
+            title: "Create 3 Security Group Rules", cat: "sg", time: "~5s",
+            hcl: `# Rule 1: Nodes → Cluster API (HTTPS/443)
+# kubelet heartbeats, pod status reports, log streaming
 resource "aws_security_group_rule" "node_to_cluster" {
   type = "ingress"; from_port = 443; to_port = 443; protocol = "tcp"
-  security_group_id        = aws_security_group.cluster.id
-  source_security_group_id = aws_security_group.node.id
+  security_group_id        = aws_security_group.cluster.id   # INTO cluster SG
+  source_security_group_id = aws_security_group.node.id      # FROM node SG
+  description = "Allow nodes to communicate with cluster API"
 }
 
-# Cluster → Nodes: kubectl exec, logs, port-forward, webhooks
+# Rule 2: Cluster API → Nodes (1025-65535)
+# kubectl exec, logs, port-forward, webhook callbacks
 resource "aws_security_group_rule" "cluster_to_node" {
   type = "ingress"; from_port = 1025; to_port = 65535; protocol = "tcp"
-  security_group_id        = aws_security_group.node.id
-  source_security_group_id = aws_security_group.cluster.id
+  security_group_id        = aws_security_group.node.id      # INTO node SG
+  source_security_group_id = aws_security_group.cluster.id   # FROM cluster SG
+  description = "Allow cluster to communicate with nodes"
 }
 
-# Nodes → Nodes: Pod-to-pod, CoreDNS, metrics
+# Rule 3: Node ↔ Node (All ports, all protocols)
+# Pod-to-pod communication, CoreDNS, metrics scraping
 resource "aws_security_group_rule" "node_to_node" {
   type = "ingress"; from_port = 0; to_port = 65535; protocol = "-1"
-  security_group_id = aws_security_group.node.id; self = true
+  security_group_id = aws_security_group.node.id
+  self = true       # ← SG references ITSELF (same SG = all nodes)
+  description = "Allow nodes to communicate with each other"
 }`,
             d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
 csg: "🛡️ Cluster SG\\n(EKS Control Plane)" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
-nsg: "🛡️ Node SG\\n(EC2 Worker Nodes)" { shape: hexagon; style.fill: "#8be9fd"; style.font-color: "#282a36" }
-nsg -> csg: "Ingress 443 (kubelet → API)" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
-csg -> nsg: "Ingress 1025-65535 (API → kubelet)" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }
-nsg -> nsg: "Ingress All (Pod-to-Pod)" { style.stroke: "#f1fa8c"; style.stroke-dash: 5 }`,
-            note: "self = true allows node-to-node traffic on all ports for pod networking.",
-            explain: "Three rules define all cluster communication: <strong>Nodes → API (443)</strong> for kubelet heartbeats and pod status. <strong>API → Nodes (1025-65535)</strong> for kubectl exec, logs, and port-forward. <strong>Node → Node (all)</strong> for pod-to-pod networking, CoreDNS queries, and metrics scraping. <code>self = true</code> means the SG references itself."
+nsg: "🛡️ Node SG\\n(EC2 Workers)" { shape: hexagon; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+nsg -> csg: "① Ingress 443\\n(kubelet → API)" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+csg -> nsg: "② Ingress 1025-65535\\n(API → kubelet)" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }
+nsg -> nsg: "③ Ingress All\\n(Pod-to-Pod, DNS)" { style.stroke: "#f1fa8c"; style.stroke-dash: 5 }`,
+            note: "self = true means the SG references itself — all nodes share the same SG, so this allows inter-node traffic.",
+            explain: "<strong>Rule 1 (Nodes → API, port 443):</strong> The kubelet on each node communicates with the API server over HTTPS to report health, watch for scheduling decisions, and push logs. <strong>Rule 2 (API → Nodes, ports 1025-65535):</strong> The control plane connects back to nodes for <code>kubectl exec</code>, <code>kubectl logs</code>, <code>port-forward</code>, and webhook callbacks. Port range covers kubelet (10250) and all high ports. <strong>Rule 3 (Node ↔ Node, all):</strong> Pods on different nodes communicate directly via VPC CNI. CoreDNS queries (UDP/53), metrics scraping, and service mesh traffic all flow here."
           },
+          {
+            title: "📚 Concept: NACL vs Security Group", cat: "sg", time: "concept",
+            hcl: `# ┌─────────────────────────────────────────────────────────┐
+# │        NACL vs Security Group — Side by Side           │
+# └─────────────────────────────────────────────────────────┘
+
+# ── Security Group (Stateful) ──────────────────────────────
+# Only 1 rule needed — return traffic is AUTOMATIC
+resource "aws_security_group_rule" "allow_http" {
+  type              = "ingress"
+  from_port         = 80
+  to_port           = 80
+  protocol          = "tcp"
+  cidr_blocks       = ["0.0.0.0/0"]
+  security_group_id = aws_security_group.web.id
+}
+# ✅ Response on port 52341 → auto-allowed (stateful)
+
+# ── NACL (Stateless) ──────────────────────────────────────
+# BOTH directions must be explicitly defined!
+resource "aws_network_acl_rule" "inbound_http" {
+  network_acl_id = aws_network_acl.web.id
+  rule_number    = 100
+  protocol       = "tcp"
+  rule_action    = "allow"
+  egress         = false         # inbound
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 80
+  to_port        = 80
+}
+
+resource "aws_network_acl_rule" "outbound_ephemeral" {
+  network_acl_id = aws_network_acl.web.id
+  rule_number    = 100
+  protocol       = "tcp"
+  rule_action    = "allow"
+  egress         = true          # outbound
+  cidr_block     = "0.0.0.0/0"
+  from_port      = 1024          # ephemeral ports
+  to_port        = 65535         # client's random return port
+}
+# ⚠️ Without the outbound rule, response is SILENTLY DROPPED
+
+# ── Blocking a Specific IP (only NACL can do this) ────────
+resource "aws_network_acl_rule" "block_attacker" {
+  network_acl_id = aws_network_acl.web.id
+  rule_number    = 50            # evaluated BEFORE rule 100
+  protocol       = "-1"
+  rule_action    = "deny"        # ← SGs cannot do this!
+  egress         = false
+  cidr_block     = "192.168.1.50/32"  # bad actor
+}`,
+            d2: `direction: down
+vars: { d2-config: { theme-id: 200 } }
+internet: "🌐 Internet\\n(Browser on port 52341)" { shape: cloud; style.fill: "#f8f8f2"; style.font-color: "#282a36" }
+nacl: "🧱 NACL\\n(Subnet boundary)" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+sg: "🛡️ Security Group\\n(Instance level)" { shape: hexagon; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+ec2: "💻 EC2 Instance\\n(port 80)" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+internet -> nacl: "① Request: port 80\\nNACL checks inbound rules" { style.stroke: "#50fa7b" }
+nacl -> sg: "② Passed NACL\\nSG checks inbound rules" { style.stroke: "#50fa7b" }
+sg -> ec2: "③ Passed SG\\nTraffic reaches instance" { style.stroke: "#50fa7b" }
+ec2 -> sg: "④ Response: port 52341\\nSG: auto-allow (stateful)" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }
+sg -> nacl: "⑤ NACL: separate check!\\nNeeds outbound ephemeral rule" { style.stroke: "#ff5555"; style.stroke-dash: 5 }
+nacl -> internet: "⑥ If rule exists → allowed\\nIf no rule → DROPPED" { style.stroke: "#ff5555"; style.stroke-dash: 5 }`,
+            warning: "With NACLs, ALWAYS open ephemeral ports (1024-65535) on the outbound side, otherwise responses never reach the client even though inbound rules look correct.",
+            note: "Security Groups are <strong>deny by default</strong> — no matching allow rule = traffic dropped. You can only ADD allow rules, never deny rules. That's why NACLs exist: to block specific IPs.",
+            explain: `<strong>🧱 NACL vs 🛡️ Security Group — The Complete Guide</strong><br><br>
+<table style="width:100%;border-collapse:collapse;font-size:.85rem;margin:.5rem 0">
+<tr style="border-bottom:2px solid #6272a4"><th style="text-align:left;padding:.4rem;color:#ff79c6">Feature</th><th style="text-align:left;padding:.4rem;color:#ffb86c">NACL</th><th style="text-align:left;padding:.4rem;color:#8be9fd">Security Group</th></tr>
+<tr style="border-bottom:1px solid #44475a"><td style="padding:.4rem;color:#f8f8f2">Operates at</td><td style="padding:.4rem;color:#ccc"><strong>Subnet</strong> level</td><td style="padding:.4rem;color:#ccc"><strong>Instance</strong> level</td></tr>
+<tr style="border-bottom:1px solid #44475a"><td style="padding:.4rem;color:#f8f8f2">State</td><td style="padding:.4rem;color:#ff5555"><strong>Stateless</strong></td><td style="padding:.4rem;color:#50fa7b"><strong>Stateful</strong></td></tr>
+<tr style="border-bottom:1px solid #44475a"><td style="padding:.4rem;color:#f8f8f2">Rules</td><td style="padding:.4rem;color:#ccc">Allow + <strong>Deny</strong></td><td style="padding:.4rem;color:#ccc">Allow only</td></tr>
+<tr style="border-bottom:1px solid #44475a"><td style="padding:.4rem;color:#f8f8f2">Rule evaluation</td><td style="padding:.4rem;color:#ccc">In order (lowest # first)</td><td style="padding:.4rem;color:#ccc">All rules evaluated together</td></tr>
+<tr><td style="padding:.4rem;color:#f8f8f2">Default</td><td style="padding:.4rem;color:#ccc">Allow all</td><td style="padding:.4rem;color:#ccc">Deny all inbound</td></tr>
+</table><br>
+<strong>Stateful vs Stateless — The Key Concept:</strong><br>
+<strong style="color:#8be9fd">Security Group (Stateful):</strong> If you allow inbound traffic on port 80, the return traffic on port 52341 is <strong>automatically allowed</strong>. The SG remembers the connection.<br>
+<strong style="color:#ffb86c">NACL (Stateless):</strong> You must explicitly allow BOTH directions. The NACL has <strong>no memory</strong> of connections — every packet is evaluated independently.<br><br>
+<strong>Return Traffic Example:</strong><br>
+<code>Browser (203.0.113.10:52341) → EC2 (54.23.45.67:80)</code> = request<br>
+<code>EC2 (54.23.45.67:80) → Browser (203.0.113.10:52341)</code> = return traffic<br>
+The browser picked a random ephemeral port (52341). The response goes back to that port. With SG, this is auto-allowed. With NACL, you need an outbound rule for ports 1024-65535 or the response is <strong>silently dropped</strong> — the browser just spins forever.<br><br>
+<strong>When to use which:</strong><br>
+• <strong>NACL:</strong> When you need to <strong>block</strong> a specific IP/range (e.g., banning a malicious IP)<br>
+• <strong>Security Group:</strong> For everything else — controlling ports/protocols. Simpler because you don't think about return traffic<br>
+• Both must allow traffic for it to reach your instance. Think of NACL as <strong>building security</strong> and Security Group as the <strong>door lock on your apartment</strong>`
+          }
         ]
       },
       {
-        phase: "EKS Cluster (The Core — ~10 Minutes)", steps: [
+        phase: "Phase 3 — EKS Cluster (The Core — ~10 Minutes)", id: "eks-cluster", steps: [
           {
-            title: "Create EKS Cluster", cat: "core", time: "~10m", highlight: true,
+            title: "Create EKS Cluster", cat: "core", time: "~10m", hl: true,
             hcl: `resource "aws_eks_cluster" "main" {
-  name     = var.cluster_name
-  version  = var.kubernetes_version       # e.g., "1.31"
-  role_arn = var.cluster_role_arn          # From IAM module
+  name     = var.cluster_name           # Cluster name visible in AWS Console
+  version  = var.kubernetes_version     # e.g., "1.31"
+  role_arn = var.cluster_role_arn       # IAM role from the IAM module
 
+  # VPC Configuration — where the cluster ENIs are placed
   vpc_config {
-    subnet_ids              = var.subnet_ids              # Private subnets
-    endpoint_public_access  = var.endpoint_public_access  # true (dev) / false (prod)
-    endpoint_private_access = var.endpoint_private_access # Always true
+    subnet_ids              = var.subnet_ids              # Private subnets (3 AZs)
+    endpoint_public_access  = var.endpoint_public_access  # true for dev, false for prod
+    endpoint_private_access = var.endpoint_private_access # Always true (nodes use this)
+    public_access_cidrs     = var.public_access_cidrs     # Restrict public access
     security_group_ids      = [aws_security_group.cluster.id]
   }
 
+  # Envelope encryption for secrets in etcd
   encryption_config {
     provider { key_arn = aws_kms_key.eks.arn }
-    resources = ["secrets"]                               # Encrypt K8s secrets in etcd
+    resources = ["secrets"]   # Currently only "secrets" supported
   }
 
-  # Enable all 5 log types when logging is enabled
+  # Control plane logging (5 types when enabled)
   enabled_cluster_log_types = var.enable_cluster_logging ? [
     "api", "audit", "authenticator", "controllerManager", "scheduler"
   ] : []
 
-  depends_on = [aws_cloudwatch_log_group.eks]
+  depends_on = [aws_cloudwatch_log_group.eks]   # Pre-create log group
+  tags       = var.tags
 }`,
             d2: `direction: left
 vars: { d2-config: { theme-id: 200 } }
 admin: "💻 kubectl" { shape: rectangle; style.fill: "#44475a"; style.stroke: "#bd93f9" }
 aws: "AWS-Managed VPC" {
   style.fill: "#282a36"; style.stroke: "#50fa7b"; style.stroke-width: 2
-  cp: "EKS Control Plane" {
-    shape: hexagon
-    style.fill: "#1e1f29"; style.stroke: "#ffb86c"; style.stroke-width: 2
+  cp: "EKS Control Plane (AWS-managed)" {
+    shape: hexagon; style.fill: "#1e1f29"; style.stroke: "#ffb86c"; style.stroke-width: 2
     api: "API Server x3 AZs" { style.fill: "#ffb86c"; style.font-color: "#282a36" }
     etcd: "etcd (KMS encrypted)" { shape: cylinder; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
     api <-> etcd: Encrypted
   }
 }
-customer: "Customer VPC" {
-  style.fill: "#282a36"; style.stroke: "#50fa7b"; style.stroke-width: 2
-  eni: "EKS-managed ENI" { shape: oval; style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
+customer: "Your VPC" {
+  style.fill: "#282a36"; style.stroke: "#8be9fd"; style.stroke-width: 2
+  eni: "EKS-managed ENIs\\n(Injected into private subnets)" { shape: oval; style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
   workers: "Worker Nodes" {
     style.fill: "#44475a"; style.stroke: "#6272a4"
-    node1: "Node" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
-    node2: "Node" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+    n1: "Node (AZ-A)" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+    n2: "Node (AZ-B)" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+    n3: "Node (AZ-C)" { shape: rectangle; style.fill: "#ffb86c"; style.font-color: "#282a36" }
   }
 }
 admin <-> aws.cp: "HTTPS :443" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
-aws.cp <-> customer.eni: "Private Link" { style.stroke: "#f8f8f2"; style.stroke-width: 2 }
-customer.eni <-> customer.workers.node1: "kubelet" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
-customer.eni <-> customer.workers.node2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
-            note: "The longest step (~10 min). AWS provisions 3 redundant API servers across 3 AZs.",
-            explain: "AWS creates the control plane in their own VPC with <strong>3 redundant API servers</strong> across 3 AZs. It injects <strong>ENIs into your private subnets</strong> so nodes can reach the API privately. <code>encryption_config</code> encrypts all Kubernetes Secrets at rest. The 5 log types cover API calls, authentication, scheduling, and controller decisions."
-          },
+aws.cp <-> customer.eni: "Private Link (cross-account)" { style.stroke: "#f8f8f2"; style.stroke-width: 2 }
+customer.eni <-> customer.workers.n1: "kubelet" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+customer.eni <-> customer.workers.n2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+customer.eni <-> customer.workers.n3 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
+            note: "The longest step (~10 min). AWS provisions 3 redundant API servers, etcd, controllers, and scheduler.",
+            explain: "This is the <strong>heart of the module</strong>. AWS creates the control plane in their own VPC with <strong>3 redundant API servers across 3 AZs</strong>. What you get: API server, etcd, controller manager, scheduler — all managed. AWS injects <strong>ENIs (Elastic Network Interfaces) into your private subnets</strong> so nodes communicate with the API privately via these cross-account endpoints. <strong>endpoint_public_access</strong>: When true, the API is reachable from the internet (restrict with <code>public_access_cidrs</code>). <strong>endpoint_private_access</strong>: Always true — nodes use this to talk to the API without leaving the VPC. <strong>encryption_config</strong>: Encrypts all Kubernetes Secrets at rest in etcd using our KMS key.",
+            warning: "public_access_cidrs = [\"0.0.0.0/0\"] allows API access from anywhere. In production, restrict to your office/VPN CIDR."
+          }
         ]
       },
       {
-        phase: "OIDC Provider (IRSA — Per-Pod IAM)", steps: [
+        phase: "Phase 4 — OIDC Provider (IRSA — Per-Pod IAM)", id: "oidc-irsa", steps: [
           {
-            title: "Register OIDC Provider", cat: "core", time: "~10s",
-            hcl: `data "tls_certificate" "cluster" {
+            title: "Fetch TLS Certificate + Register OIDC Provider", cat: "oidc", time: "~10s",
+            hcl: `# Step 1: Fetch TLS certificate for OIDC issuer verification
+data "tls_certificate" "cluster" {
   count = var.enable_irsa ? 1 : 0
   url   = aws_eks_cluster.main.identity[0].oidc[0].issuer
 }
 
+# Step 2: Register OIDC issuer as IAM Identity Provider
 resource "aws_iam_openid_connect_provider" "cluster" {
   count           = var.enable_irsa ? 1 : 0
-  client_id_list  = ["sts.amazonaws.com"]
+  client_id_list  = ["sts.amazonaws.com"]       # Standard audience for EKS
   thumbprint_list = [data.tls_certificate.cluster[0].certificates[0].sha1_fingerprint]
   url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
+  tags            = merge(var.tags, { Name = "\${var.cluster_name}-oidc-provider" })
 }`,
             d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
-oidc: "🛡️ OIDC Identity Provider\\n(IAM Integration)" { shape: hexagon; style.fill: "#bd93f9"; style.font-color: "#f8f8f2" }
-pods: "Kubernetes Namespace" {
-  style.fill: "#1e1f29"; style.stroke: "#6272a4"; style.stroke-width: 2
-  sa1: "🎫 ServiceAccount (S3 Read)" { shape: document; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
-  sa2: "🎫 ServiceAccount (Dynamo Write)" { shape: document; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
-  pod1: "📦 App Pod 1" { shape: package; style.fill: "#8be9fd"; style.font-color: "#282a36" }
-  pod2: "📦 App Pod 2" { shape: package; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+oidc: "🛡️ OIDC Identity Provider\\n(Registered in IAM)" { shape: hexagon; style.fill: "#ff79c6"; style.font-color: "#f8f8f2" }
+iam: "AWS IAM" {
+  style.fill: "#1e1f29"; style.stroke: "#ffb86c"
+  r1: "IAM Role: s3-reader\\n(Trusts OIDC for ns:default, sa:s3-sa)" { shape: document; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+  r2: "IAM Role: dynamo-writer\\n(Trusts OIDC for ns:app, sa:db-sa)" { shape: document; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
 }
-oidc -> pods.sa1: "STS AssumeRoleWithWebIdentity" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
-oidc -> pods.sa2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
-pods.sa1 -> pods.pod1: "Mounted Token" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }
-pods.sa2 -> pods.pod2: "Mounted Token" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }`,
-            note: "Without IRSA all pods share the Node Role. With IRSA each pod gets least-privilege IAM.",
-            explain: "IRSA maps a Kubernetes <strong>ServiceAccount</strong> to an <strong>IAM Role</strong> via OIDC federation. When a pod uses that ServiceAccount, AWS STS exchanges the K8s token for temporary IAM credentials. This eliminates the need for access keys in pods. The TLS thumbprint verifies the OIDC issuer identity."
-          },
+pods: "Kubernetes" {
+  style.fill: "#1e1f29"; style.stroke: "#6272a4"; style.stroke-width: 2
+  p1: "📦 App Pod 1\\n(uses ServiceAccount: s3-sa)" { shape: package; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+  p2: "📦 App Pod 2\\n(uses ServiceAccount: db-sa)" { shape: package; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+}
+oidc -> iam.r1: "Validates token" { style.stroke: "#ff79c6"; style.stroke-dash: 5 }
+oidc -> iam.r2 { style.stroke: "#ff79c6"; style.stroke-dash: 5 }
+iam.r1 -> pods.p1: "STS: Temporary creds" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+iam.r2 -> pods.p2 { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
+            note: "Without IRSA: ALL pods share the Node Role (broad permissions). With IRSA: each pod gets least-privilege IAM.",
+            explain: "<strong>IRSA (IAM Roles for Service Accounts)</strong> is the most important security feature for EKS. Here's the flow: <strong>1.</strong> EKS creates an OIDC issuer URL for your cluster. <strong>2.</strong> We register this OIDC issuer as an Identity Provider in IAM. <strong>3.</strong> You create IAM Roles with trust policies that reference the OIDC provider + specific namespace + ServiceAccount name. <strong>4.</strong> Annotate a K8s ServiceAccount with the IAM Role ARN. <strong>5.</strong> When a pod uses that ServiceAccount, the kubelet projects an OIDC token into the pod. <strong>6.</strong> AWS STS exchanges the OIDC token for temporary IAM credentials (15-min TTL). <strong>Result:</strong> Pod gets only the permissions of its specific IAM Role — no shared node role, no long-lived access keys, full <strong>least privilege</strong>. The TLS thumbprint prevents MITM attacks on the token exchange."
+          }
         ]
-      },
+      }
+      ,
       {
-        phase: "EKS Add-ons (Essential Cluster Services)", steps: [
+        phase: "Phase 5 — EKS Add-ons (Essential Cluster Services)", id: "addons", steps: [
           {
-            title: "Install VPC CNI, kube-proxy, CoreDNS", cat: "addon", time: "~2m",
+            title: "Install VPC CNI Plugin", cat: "addon", time: "~30s",
             hcl: `resource "aws_eks_addon" "vpc_cni" {
-  cluster_name = aws_eks_cluster.main.name
-  addon_name   = "vpc-cni"
-  addon_version = var.vpc_cni_version != "" ? var.vpc_cni_version : null
-}
-
-resource "aws_eks_addon" "kube_proxy" {
-  cluster_name = aws_eks_cluster.main.name
-  addon_name   = "kube-proxy"
-  addon_version = var.kube_proxy_version != "" ? var.kube_proxy_version : null
-}
-
-resource "aws_eks_addon" "coredns" {
-  cluster_name = aws_eks_cluster.main.name
-  addon_name   = "coredns"
-  addon_version = var.coredns_version != "" ? var.coredns_version : null
-  depends_on    = [aws_eks_node_group.main]   # Needs nodes to schedule pods
-}`,
-            d2: `direction: down
-vars: { d2-config: { theme-id: 200 } }
-worker: "🖥️ EC2 Worker Node" {
-  style.fill: "#1e1f29"; style.stroke: "#6272a4"; style.stroke-width: 2
-  cni: "🌐 VPC CNI (DaemonSet)\\nAssigns real VPC IPs to pods" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
-  kp: "🔀 kube-proxy (DaemonSet)\\nManages iptables/IPVS routing" { shape: hexagon; style.fill: "#8be9fd"; style.font-color: "#282a36" }
-  dns: "🔍 CoreDNS (Deployment)\\nCluster DNS resolution" { shape: hexagon; style.fill: "#50fa7b"; style.font-color: "#282a36" }
-}
-vpc: "🖧 Customer VPC" { shape: package; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
-worker.cni -> vpc: "Assigns real IPs to Pods" { style.stroke: "#ffb86c"; style.stroke-dash: 5 }`,
-            note: "CoreDNS depends_on node groups — it needs nodes to schedule its pods.",
-            explain: "<strong>VPC CNI</strong> runs as a DaemonSet — assigns real VPC IPs to pods (no overlay network). <strong>kube-proxy</strong> manages iptables/IPVS rules for Service routing. <strong>CoreDNS</strong> resolves DNS names (<code>my-svc.namespace.svc.cluster.local</code> → ClusterIP). CoreDNS is a Deployment and needs at least one running node — hence the <code>depends_on</code>."
-          },
-        ]
-      },
-      {
-        phase: "Node Groups (Worker Compute)", steps: [
-          {
-            title: "Create Launch Templates", cat: "node", time: "~10s",
-            hcl: `resource "aws_launch_template" "node" {
-  for_each = var.node_groups
-
-  metadata_options {
-    http_tokens                 = "required"  # IMDSv2 enforced (blocks SSRF attacks)
-    http_put_response_hop_limit = 2           # 2 hops for containers
-  }
-
-  block_device_mappings {
-    device_name = "/dev/xvda"
-    ebs {
-      volume_type = "gp3"           # 3000 baseline IOPS
-      encrypted   = true            # Encryption at rest
-      iops        = 3000
-    }
-  }
-
-  network_interfaces {
-    associate_public_ip_address = false   # Private subnets only
-  }
-
-  monitoring { enabled = var.enable_detailed_monitoring }
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "vpc-cni"
+  addon_version               = var.vpc_cni_version != "" ? var.vpc_cni_version : null
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+  tags = var.tags
 }`,
             d2: `direction: right
 vars: { d2-config: { theme-id: 200 } }
-lt: "📜 EC2 Launch Template" {
-  style.fill: "#1e1f29"; style.stroke: "#bd93f9"; style.stroke-width: 2
-  imds: "🔐 IMDSv2 Enforced\\n(Blocks SSRF)" { shape: rectangle; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
-  ebs: "💾 gp3 Volumes\\n(Encrypted, 3000 IOPS)" { shape: cylinder; style.fill: "#ffb86c"; style.font-color: "#282a36" }
-  net: "🌐 No Public IPs" { shape: rectangle; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+node: "🖥️ EC2 Node" {
+  style.fill: "#1e1f29"; style.stroke: "#6272a4"
+  eni1: "Primary ENI\\n(Node IP)" { shape: oval; style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+  eni2: "Secondary ENI\\n(Pod IPs)" { shape: oval; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+  pod1: "📦 Pod A\\n(VPC IP: 10.0.1.15)" { shape: package; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+  pod2: "📦 Pod B\\n(VPC IP: 10.0.1.16)" { shape: package; style.fill: "#50fa7b"; style.font-color: "#282a36" }
 }
-asg: "⚙️ EKS Node Group (ASG)" { shape: hexagon; style.fill: "#50fa7b"; style.font-color: "#282a36" }
-lt -> asg: "Provisions instances" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }`,
-            note: "http_tokens = required prevents SSRF credential theft (Capital One breach used IMDSv1).",
-            explain: "Launch templates define the <strong>security baseline</strong> for all nodes. <code>http_tokens = required</code> enforces IMDSv2, preventing SSRF attacks that steal credentials from the metadata endpoint. <code>hop_limit = 2</code> is needed because containers are 2 network hops from the metadata service. <code>gp3</code> volumes provide 3000 baseline IOPS with encryption at rest."
+vpc: "🖧 VPC (10.0.0.0/16)" { shape: cloud; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+node.eni2 -> node.pod1: "Assigns IP" { style.stroke: "#ffb86c"; style.stroke-dash: 5 }
+node.eni2 -> node.pod2 { style.stroke: "#ffb86c"; style.stroke-dash: 5 }
+node.pod1 -> vpc: "Direct VPC routing" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
+            note: "Unique to EKS: pods get REAL VPC IPs. No overlay network, no encapsulation overhead.",
+            explain: "The <strong>VPC CNI plugin</strong> is what makes EKS networking special. Unlike other K8s distributions that use overlay networks (Flannel, Calico), EKS assigns <strong>real VPC IP addresses</strong> to each pod. How it works: the CNI allocates secondary IPs from the node's ENI. When more IPs are needed, it creates additional ENIs. Benefits: <strong>native VPC performance</strong> (no encapsulation), pods are directly addressable within the VPC, security groups can be applied at pod level, and VPC Flow Logs capture pod traffic."
           },
           {
-            title: "Create Node Groups", cat: "node", time: "~3m",
-            hcl: `resource "aws_eks_node_group" "main" {
-  for_each     = var.node_groups
-  cluster_name = aws_eks_cluster.main.name
-  node_role_arn = var.node_role_arn
-  subnet_ids    = var.subnet_ids
+            title: "Install kube-proxy", cat: "addon", time: "~30s",
+            hcl: `resource "aws_eks_addon" "kube_proxy" {
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "kube-proxy"
+  addon_version               = var.kube_proxy_version != "" ? var.kube_proxy_version : null
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+  tags = var.tags
+}`,
+            note: "Runs as a DaemonSet on every node. Doesn't need depends_on — waits for nodes to appear.",
+            explain: "<strong>kube-proxy</strong> runs on every node as a DaemonSet. When a pod sends traffic to a Kubernetes Service (e.g., <code>mysql-service:3306</code>), kube-proxy intercepts it and forwards to one of the backend pods. It maintains <strong>iptables rules</strong> (default) or <strong>IPVS rules</strong> (better at scale) that implement Service load balancing. <code>resolve_conflicts = OVERWRITE</code> means if a previous version exists with manual modifications, this overwrites them with the managed version."
+          },
+          {
+            title: "Install CoreDNS", cat: "addon", time: "~1m",
+            hcl: `resource "aws_eks_addon" "coredns" {
+  cluster_name                = aws_eks_cluster.main.name
+  addon_name                  = "coredns"
+  addon_version               = var.coredns_version != "" ? var.coredns_version : null
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+  depends_on = [aws_eks_node_group.main]   # ⚠️ Needs nodes to schedule pods
+  tags = var.tags
+}`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+pod: "📦 App Pod" { shape: package; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+dns: "🔍 CoreDNS\\n(Deployment: 2 replicas)" { shape: hexagon; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+svc: "🎯 K8s Service\\n(mysql-svc.default.svc.cluster.local)" { shape: oval; style.fill: "#f1fa8c"; style.font-color: "#282a36" }
+pod -> dns: "DNS Query:\\nmysql-svc" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+dns -> svc: "Returns:\\n10.96.0.15" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
+            note: "CoreDNS depends_on node groups — it's a Deployment that needs at least one running node.",
+            explain: "<strong>CoreDNS</strong> is the cluster DNS server. When a pod resolves <code>mysql-svc.default.svc.cluster.local</code>, CoreDNS returns the Service's ClusterIP. Without it, pods would need hardcoded IPs. <strong>Why depends_on?</strong> CoreDNS is a Deployment (not a DaemonSet) — it needs at least one node to schedule its pods on. If installed before nodes exist, it stays in <strong>Degraded</strong> state. The full DNS hierarchy: <code>&lt;service&gt;.&lt;namespace&gt;.svc.cluster.local</code>"
+          }
+        ]
+      },
+      {
+        phase: "Phase 6 — Node Groups (Worker Compute)", id: "node-groups", steps: [
+          {
+            title: "Create Launch Templates (Security Baseline)", cat: "node", time: "~10s",
+            hcl: `resource "aws_launch_template" "node" {
+  for_each    = var.node_groups
+  name_prefix = "\${var.cluster_name}-\${each.key}-"
 
-  scaling_config {
-    desired_size = each.value.desired_size
-    max_size     = each.value.max_size
-    min_size     = each.value.min_size
+  # EBS: gp3 encrypted volumes
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs {
+      volume_size           = lookup(each.value, "disk_size", 20)
+      volume_type           = "gp3"         # 3000 baseline IOPS, 125 MiB/s
+      iops                  = 3000
+      throughput            = 125
+      delete_on_termination = true
+      encrypted             = true          # Encryption at rest
+    }
   }
 
-  capacity_type = lookup(each.value, "capacity_type", "ON_DEMAND")
+  # IMDSv2 — CRITICAL SECURITY (prevents SSRF credential theft)
+  metadata_options {
+    http_endpoint               = "enabled"
+    http_tokens                 = "required"   # Block IMDSv1 requests
+    http_put_response_hop_limit = 2            # 2 hops for containers
+    instance_metadata_tags      = "enabled"
+  }
+
+  monitoring { enabled = var.enable_detailed_monitoring }
+
+  network_interfaces {
+    associate_public_ip_address = false   # No public IPs on nodes
+    delete_on_termination       = true
+    security_groups             = [aws_security_group.node.id]
+  }
+
+  lifecycle { create_before_destroy = true }
+  tags = var.tags
+}`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+lt: "📜 Launch Template" {
+  style.fill: "#1e1f29"; style.stroke: "#bd93f9"; style.stroke-width: 2
+  imds: "🔐 IMDSv2 Enforced\\n(Blocks SSRF attacks)" { shape: rectangle; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
+  ebs: "💾 gp3 + Encrypted\\n(3000 IOPS, 125 MiB/s)" { shape: cylinder; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+  net: "🌐 Private Only\\n(No public IPs)" { shape: rectangle; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+  mon: "📊 CloudWatch Metrics\\n(Optional: 1-min intervals)" { shape: rectangle; style.fill: "#6272a4"; style.font-color: "#f8f8f2" }
+}
+asg: "⚙️ Node Group\\n(Auto Scaling Group)" { shape: hexagon; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+lt -> asg: "Provisions instances" { style.stroke: "#bd93f9"; style.stroke-dash: 5 }`,
+            note: "IMDSv2 prevents SSRF credential theft — the 2019 Capital One breach exploited IMDSv1.",
+            explain: "Launch templates define the <strong>security baseline</strong> for every node. Key settings: <strong>IMDSv2 (http_tokens = required)</strong>: The Instance Metadata Service provides IAM credentials. IMDSv1 allows simple GET requests. SSRF attacks make the server request its own metadata, stealing credentials. IMDSv2 requires a PUT request to get a session token first — SSRF can only make GET requests, blocking the attack. <strong>hop_limit = 2</strong>: Containers are 2 network hops from the metadata service. <strong>gp3 volumes</strong>: Fixed 3000 IOPS and 125 MiB/s baseline regardless of volume size (unlike gp2 which is burstable). <strong>encrypted = true</strong>: EBS encryption at rest using the default AWS KMS key. <strong>No public IPs</strong>: Nodes are in private subnets and reach the internet only via NAT Gateway.",
+            warning: "for_each creates one launch template per node group. 'general' and 'spot' get separate templates."
+          },
+          {
+            title: "Create Managed Node Groups", cat: "node", time: "~3m",
+            hcl: `resource "aws_eks_node_group" "main" {
+  for_each        = var.node_groups
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = each.key               # "general" or "spot"
+  node_role_arn   = var.node_role_arn
+  subnet_ids      = var.subnet_ids          # Private subnets (3 AZs)
+  version         = var.kubernetes_version
+
+  scaling_config {
+    desired_size = each.value.desired_size   # Starting count
+    max_size     = each.value.max_size       # Autoscaler ceiling
+    min_size     = each.value.min_size       # Autoscaler floor
+  }
+
+  instance_types = each.value.instance_types
+  capacity_type  = lookup(each.value, "capacity_type", "ON_DEMAND")
+  labels         = lookup(each.value, "labels", {})
+
+  # Dynamic taints — repel pods unless they tolerate
+  dynamic "taint" {
+    for_each = coalesce(lookup(each.value, "taints", null), [])
+    content {
+      key    = taint.value.key      # e.g., "spot"
+      value  = taint.value.value    # e.g., "true"
+      effect = taint.value.effect   # e.g., "NO_SCHEDULE"
+    }
+  }
 
   launch_template {
     id      = aws_launch_template.node[each.key].id
@@ -452,80 +1260,338 @@ lt -> asg: "Provisions instances" { style.stroke: "#bd93f9"; style.stroke-dash: 
   depends_on = [aws_eks_addon.vpc_cni, aws_eks_addon.kube_proxy]
 
   lifecycle { ignore_changes = [scaling_config[0].desired_size] }
+  tags = merge(var.tags, lookup(each.value, "tags", {}))
 }`,
             d2: `direction: down
 vars: { d2-config: { theme-id: 200 } }
 api: "⬡ EKS Control Plane" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
-vpc: "🖧 Customer VPC" {
+vpc: "🔒 Private Subnets" {
   style.fill: "#1e1f29"; style.stroke: "#bd93f9"; style.stroke-width: 2
-  priv: "🔒 Private Subnets" {
-    style.fill: "#282a36"; style.stroke: "#8be9fd"
-    g1: "📦 ON_DEMAND Node Group" {
-      style.fill: "#44475a"; style.stroke: "#50fa7b"
-      n1: "EC2 t3.medium" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" }
-      n2: "EC2 t3.medium" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" }
-    }
-    g2: "📉 SPOT Node Group" {
-      style.fill: "#44475a"; style.stroke: "#f1fa8c"
-      s1: "EC2 t3.medium (Tainted)" { shape: rectangle; style.fill: "#f1fa8c"; style.font-color: "#282a36" }
-    }
+  g1: "📦 General (ON_DEMAND)" {
+    style.fill: "#282a36"; style.stroke: "#50fa7b"
+    n1: "t3.medium" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+    n2: "t3.medium" { shape: rectangle; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+  }
+  g2: "📉 Spot (UP TO 90% OFF)" {
+    style.fill: "#282a36"; style.stroke: "#f1fa8c"
+    s1: "t3.medium (Tainted)" { shape: rectangle; style.fill: "#f1fa8c"; style.font-color: "#282a36" }
   }
 }
-api -> vpc.priv.g1.n1: "Kubelet Join" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
-api -> vpc.priv.g1.n2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
-api -> vpc.priv.g2.s1 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
-            note: "ignore_changes = [desired_size] prevents Terraform from fighting the Cluster Autoscaler.",
-            explain: "Two node groups serve different purposes: <strong>General (ON_DEMAND)</strong> for reliable workloads, and <strong>Spot (up to 90% off)</strong> for fault-tolerant batch jobs. Spot nodes have a <strong>taint</strong> preventing pods from scheduling unless they explicitly tolerate it. <code>lifecycle { ignore_changes }</code> prevents Terraform from overriding autoscaler decisions."
-          },
+api -> vpc.g1.n1: "Kubelet Join" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+api -> vpc.g1.n2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+api -> vpc.g2.s1 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
+            note: "lifecycle { ignore_changes = [desired_size] } prevents Terraform from fighting the Cluster Autoscaler.",
+            explain: "Two node group types serve different strategies: <strong>General (ON_DEMAND)</strong> — reliable, always-available instances for production workloads. <strong>Spot (up to 90% cheaper)</strong> — interruptible instances for fault-tolerant batch jobs, CI/CD, dev/test. Spot nodes have a <strong>taint</strong> (e.g., <code>spot=true:NoSchedule</code>) that repels pods unless they explicitly add a <strong>toleration</strong>. This prevents critical workloads from accidentally landing on Spot nodes. <strong>Dynamic block</strong>: The <code>dynamic \"taint\"</code> block generates 0 or more taint configurations from a list — it's like a for-loop for HCL blocks. <strong>lifecycle ignore_changes</strong>: The Cluster Autoscaler modifies <code>desired_size</code> at runtime. Without this, every <code>terraform apply</code> would reset the count back, undoing the autoscaler's work. <strong>depends_on</strong>: Nodes need VPC CNI and kube-proxy installed first so they can configure networking when joining the cluster."
+          }
         ]
-      },
+      }
     ];
 
-    const BADGES = { enc: 'badge-enc', sg: 'badge-sg', core: 'badge-core', addon: 'badge-addon', node: 'badge-node' };
-    const BADGE_LABEL = { enc: 'Encryption', sg: 'Security', core: 'Core', addon: 'Add-on', node: 'Compute' };
+    // ─── Badge config ───
+    const BADGES = { enc: 'badge-enc', sg: 'badge-sg', core: 'badge-core', addon: 'badge-addon', node: 'badge-node', oidc: 'badge-oidc' };
+    const BL = { enc: 'Encryption', sg: 'Security', core: 'Core', addon: 'Add-on', node: 'Compute', oidc: 'OIDC/IRSA' };
 
-    let html = '', stepNum = 0, summaryRows = '';
+    // ─── K8s Purpose & Line-by-Line Explanations ───
+    const PURPOSES = [
+      '🔐 <strong>KMS in Kubernetes:</strong> etcd stores ALL cluster state — Deployments, ConfigMaps, and crucially, <strong>Secrets</strong> (DB passwords, API tokens). Without KMS, Secrets are just base64-encoded in etcd — anyone with etcd access reads them. KMS adds real encryption.',
+      '📊 <strong>CloudWatch in Kubernetes:</strong> The control plane runs in AWS-managed infrastructure you can\'t SSH into. CloudWatch is the <strong>only way</strong> to see API server logs, audit trails, and scheduling decisions. Essential for debugging "why did my pod get evicted?" and compliance.',
+      '🛡️ <strong>Security Groups in Kubernetes:</strong> EKS places <strong>ENIs</strong> (virtual NICs) in your VPC for the API server. These SGs control who can reach the API and how nodes talk to the control plane. Think of them as the <strong>VPC-level firewall</strong> around your cluster.',
+      '🔗 <strong>SG Rules in Kubernetes:</strong> These 3 rules define ALL allowed communication: kubelet → API (node health), API → kubelet (exec/logs), and Node ↔ Node (pod networking). Without these, your cluster is <strong>deaf and mute</strong>.',
+      '🧱 <strong>NACL vs Security Group:</strong> Both protect your VPC resources but at different levels. NACLs operate at the <strong>subnet boundary</strong> (stateless, supports deny rules). Security Groups operate at the <strong>instance level</strong> (stateful, allow-only rules). In EKS: Security Groups protect cluster ENIs and nodes. NACLs protect entire subnets. Understanding the difference is essential for debugging networking issues.',
+      '⬡ <strong>EKS Cluster in Kubernetes:</strong> This IS the Kubernetes control plane — the brain. AWS runs 3 API server replicas across 3 AZs, manages etcd, runs controllers and scheduler. You get a managed Kubernetes with 99.95% SLA without managing any master nodes.',
+      '🔑 <strong>OIDC/IRSA in Kubernetes:</strong> The biggest security win. Without IRSA, every pod on a node shares the same IAM role (node role). With IRSA, a pod running <code>s3-uploader</code> gets ONLY S3 write access via its own ServiceAccount → IAM Role mapping. <strong>Least privilege per pod.</strong>',
+      '🌐 <strong>VPC CNI in Kubernetes:</strong> Unlike Flannel/Calico (overlay networks), VPC CNI assigns <strong>real VPC IPs</strong> to pods. This means: no encapsulation overhead, pods can talk directly to RDS/ElastiCache, and VPC Flow Logs see individual pod traffic.',
+      '🔀 <strong>kube-proxy in Kubernetes:</strong> When you create a Service (ClusterIP/NodePort/LoadBalancer), kube-proxy programs iptables rules on every node to route traffic to the correct backend pods. It\'s the <strong>L4 load balancer</strong> inside your cluster.',
+      '🔍 <strong>CoreDNS in Kubernetes:</strong> Enables <strong>service discovery</strong>. Instead of hardcoding IPs, pods call services by name: <code>mysql.default.svc.cluster.local</code>. CoreDNS resolves this to the Service\'s ClusterIP. It\'s the <strong>phone book</strong> of your cluster.',
+      '📜 <strong>Launch Templates in Kubernetes:</strong> Define the <strong>security baseline</strong> for every EC2 node that joins the cluster. IMDSv2 blocks credential theft, encrypted EBS protects data at rest, no public IPs ensures nodes are only reachable within the VPC.',
+      '🖥️ <strong>Node Groups in Kubernetes:</strong> These are the actual EC2 instances where your pods run. ON_DEMAND for production stability, SPOT for cost savings on fault-tolerant workloads. The Cluster Autoscaler adjusts desired_size based on pending pods.'
+    ];
+
+    const LINES = [
+      // ── Step 1: KMS Key ──
+      [
+        ['description = "..."',
+          '<strong>What it does:</strong> Sets a human-readable label for the KMS key that appears in the AWS Console, CLI output, and CloudTrail logs.<br><strong>Why it matters:</strong> When you have dozens of KMS keys across services (RDS, S3, EBS, EKS), the description helps you instantly identify which key belongs to which service without checking ARNs.'],
+        ['deletion_window_in_days = 7',
+          '<strong>What it does:</strong> When you delete a KMS key, AWS does NOT delete it immediately. Instead, it schedules deletion for 7 days in the future.<br><strong>Why it exists:</strong> KMS keys encrypt data at rest (secrets, volumes, S3 objects). If a key is deleted instantly and something was still encrypted with it, that data becomes <strong>permanently unrecoverable</strong> — there is no way to decrypt without the key.<br><strong>During the 7-day window:</strong> The key is <strong>disabled</strong> — it cannot encrypt or decrypt anything. Any service trying to use it gets an error. AWS CloudTrail logs all attempted uses, helping you identify dependencies. You can <strong>cancel the deletion</strong> to restore the key.<br><strong>After 7 days:</strong> Deletion is permanent and irreversible. Range: 7-30 days.'],
+        ['enable_key_rotation = true',
+          '<strong>What it does:</strong> AWS automatically generates new cryptographic key material every 365 days (1 year). The old key material is preserved so existing encrypted data can still be decrypted.<br><strong>Why it exists:</strong> Key rotation limits the blast radius of a compromise. If key material is leaked, only data encrypted with that year\'s material is at risk — not all data ever encrypted with that key.< br > <strong>How it works internally:</strong> AWS keeps all previous versions of the key material under the same Key ID and ARN.When encrypting new data, it uses the latest material.When decrypting, it automatically detects which version was used and applies the correct material. < strong > You don\'t need to re-encrypt anything.</strong>'],
+        ['name = "alias/..."',
+          '<strong>What it does:</strong> Creates a human-friendly shortcut name for the KMS key. Instead of referencing <code>key-id-a1b2c3d4-5678-90ab-cdef</code>, you use <code>alias/eks-secure-cluster-eks</code>.<br><strong>Why it exists:</strong> Key IDs are UUIDs — impossible to remember. Aliases make keys identifiable in the Console, CLI commands (<code>aws kms describe-key --key-id alias/my-key</code>), and Terraform code.<br><strong>Important:</strong> Aliases are unique per region per account. They always start with <code>alias/</code>.'],
+        ['target_key_id = aws_kms_key.eks.key_id',
+          '<strong>What it does:</strong> Points the alias to the actual KMS key created above. This is the link between the friendly name and the real key.<br><strong>Why separate resources:</strong> In Terraform, the alias is a separate resource from the key itself. This means you can change the alias without affecting the key, or point multiple aliases to the same key.']
+      ],
+      // ── Step 2: CloudWatch Log Group ──
+      [
+        ['count = var.enable_cluster_logging ? 1 : 0',
+          '<strong>What it does:</strong> This is Terraform\'s conditional creation pattern.When < code > enable_cluster_logging = true</code >, count is 1(create the resource).When < code > false</code >, count is 0(skip it entirely — the resource doesn\'t exist).<br><strong>Why not just always create?</strong> CloudWatch Logs costs money (~$0.50/GB ingested). For dev/test environments, you may not need control plane logs. This flag lets you save costs by only enabling when needed.<br><strong>How count = 0 works:</strong> Terraform treats the resource as if it doesn\'t exist.Any references to it(like < code > aws_cloudwatch_log_group.eks[0]</code >) become invalid, which is why other resources use conditional references too.'],
+        ['name = "/aws/eks/.../cluster"',
+          '<strong>What it does:</strong> Sets the log group name in CloudWatch. This name MUST follow the exact pattern <code>/aws/eks/&lt;cluster-name&gt;/cluster</code>.<br><strong>Why this exact name?</strong> EKS uses a <strong>hardcoded naming convention</strong> — there is no <code>log_destination</code> argument on the EKS cluster resource (unlike VPC Flow Logs which accept an ARN). When you enable cluster logging, EKS internally constructs this path from your cluster name and sends logs there automatically.<br><strong>What if you don\'t pre - create this ?</strong > EKS will auto - create a log group with the same name, but with <strong>no retention limit</strong> — logs accumulate forever, and your CloudWatch bill grows indefinitely.Pre - creating lets us set retention to 30 days.'],
+        ['retention_in_days = 30',
+          '<strong>What it does:</strong> Automatically deletes log events older than 30 days. After 30 days, each log event is permanently removed — you cannot recover it.<br><strong>Why it matters:</strong> Without a retention policy, CloudWatch keeps logs <strong>forever</strong>. A busy EKS cluster can generate 1-5 GB/day of control plane logs. Over a year, that\'s ~$500 - 2500 in storage costs alone.< br > <strong>Choosing the value:</strong> 30 days is good for dev / staging.For production with compliance requirements(SOC2, HIPAA, PCI), use 90 days, 1 year, or even longer.Common values: 1, 3, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653.']
+      ],
+      // ── Step 3: Security Groups ──
+      [
+        ['name_prefix = "...-cluster-sg-"',
+          '<strong>What it does:</strong> Instead of setting an exact name, <code>name_prefix</code> tells AWS to use this string as a prefix and append a random suffix (e.g., <code>eks-cluster-sg-a1b2c3</code>).<br><strong>Why not just use name?</strong> When Terraform needs to <strong>replace</strong> a security group (due to a configuration change), it must create the new one before deleting the old one. Two resources can\'t have the same name simultaneously. < code > name_prefix</code > generates unique names, avoiding the \"name already exists\" error during replacements.<br><strong>In practice:</strong> You\'ll see names like <code>eks-secure-cluster-cluster-sg-20240101123456789</code> in the AWS Console.'],
+        ['vpc_id = var.vpc_id',
+          '<strong>What it does:</strong> Places the security group inside a specific VPC. Security groups are VPC-scoped — they only apply to resources in the same VPC.<br><strong>Why it matters:</strong> A security group in VPC-A cannot be used by an instance in VPC-B. Since the EKS cluster\'s ENIs and worker nodes are all in the same VPC(created by the VPC module), all security groups must belong to that VPC.< br > <strong>Cross-VPC note:</strong> If you ever peer VPCs, you can reference security groups across VPCs, but the SG itself still belongs to one VPC.'],
+        ['egress { ... protocol = "-1" }',
+          '<strong>What it does:</strong> Allows ALL outbound traffic from resources using this security group. <code>protocol = "-1"</code> means all protocols (TCP, UDP, ICMP). <code>from_port = 0; to_port = 0</code> with protocol -1 means all ports.<br><strong>Why allow everything outbound?</strong> Nodes and the control plane need to reach many destinations: container registries (docker.io, ECR, quay.io), AWS service APIs (STS, CloudWatch, S3, KMS), DNS servers (UDP/53), the EKS API server, NTP servers, and more. Restricting egress breaks functionality in unpredictable ways.<br><strong>Security model:</strong> Security groups are <strong>stateful</strong> — if outbound is allowed and a node makes a request, the response is automatically allowed inbound. So allowing all egress doesn\'t mean all inbound is open.'],
+        ['lifecycle { create_before_destroy }',
+          '<strong>What it does:</strong> When Terraform needs to replace this security group (e.g., you change a setting that requires recreation), it creates the <strong>new SG first</strong>, migrates all references to it, and then deletes the old SG.<br><strong>Default behavior without this:</strong> Terraform would delete the old SG first, then create a new one. During the delete phase, all associated resources (EKS ENIs, node instances) would lose their security group, causing <strong>network disruption</strong>.<br><strong>The sequence:</strong> 1) Create new SG → 2) Update EKS/nodes to use new SG → 3) Destroy old SG. This ensures zero downtime.'],
+        ['"kubernetes.io/cluster/..." = "owned"',
+          '<strong>What it does:</strong> Adds a tag to the node security group that tells Kubernetes-aware AWS services: \"this security group is managed by this EKS cluster.\"<br><strong>Why it exists:</strong> The <strong>AWS Load Balancer Controller</strong> (which creates ALBs/NLBs for Kubernetes Services of type LoadBalancer) needs to find the correct security group for target groups. It searches for this tag to discover which SG to use when registering EC2 instances as targets.<br><strong>Values:</strong> <code>owned</code> = EKS created and manages this SG. <code>shared</code> = SG is shared with other resources. The controller uses either value for discovery.']
+      ],
+      // ── Step 4: SG Rules ──
+      [
+        ['type = "ingress"; ... 443',
+          '<strong>What it does:</strong> Creates an inbound rule on the <strong>cluster security group</strong> allowing TCP traffic on port 443 from the node security group.<br><strong>Why port 443?</strong> The Kubernetes API server listens on HTTPS port 443. Every kubelet (the agent running on each node) communicates with the API server to: report node health (\"I\'m alive and have 4 CPU, 16GB RAM available\"), watch for new pod assignments (\"run this container\"), push container logs, and register the node with the cluster.<br><strong>What breaks without this:</strong> Nodes cannot join the cluster. The kubelet fails to contact the API server, pods are never scheduled, and the cluster appears to have 0 nodes.'],
+        ['security_group_id = ...cluster.id',
+          '<strong>What it does:</strong> Specifies which security group this rule is <strong>added to</strong> — the cluster SG. Think of it as: \"add this allow-rule to the cluster\'s firewall.\"<br><strong>How SG rules work:</strong> A security group is a list of allow rules. Each rule says: \"allow traffic from [source] on [port] using [protocol].\" The <code>security_group_id</code> is the SG that gets the rule. The <code>source_security_group_id</code> says where traffic is allowed from.<br><strong>Visual:</strong> Traffic flows FROM <code>source_security_group_id</code> INTO <code>security_group_id</code>.'],
+        ['source_security_group_id = ...node.id',
+          '<strong>What it does:</strong> Restricts the allowed source to ONLY resources using the node security group. No other source IP or SG can use this rule.<br><strong>Why SG-to-SG instead of CIDR?</strong> SG references are dynamic. When new nodes are added (autoscaling), they automatically get the node SG and are immediately covered by this rule. With CIDR blocks, you\'d need to update the rule every time a node\'s IP changes — impractical with autoscaling.<br><strong>Security benefit:</strong> Even if an attacker gets a foothold inside your VPC, they can\'t reach the cluster API unless they\'re on a resource with the node SG attached.'],
+        ['from_port = 1025; to_port = 65535',
+          '<strong>What it does:</strong> Allows the EKS control plane to connect to worker nodes on any port from 1025 to 65535.<br><strong>Why such a wide range?</strong> The control plane needs to reach several services on nodes: kubelet API (port 10250) for <code>kubectl exec</code>, <code>kubectl logs</code>, and <code>kubectl port-forward</code>. Admission webhooks (validating/mutating) can listen on any high port. Prometheus metrics endpoints, custom health check ports, and more.<br><strong>Why not just port 10250?</strong> Webhooks and custom controllers can use any port. Opening the full high-port range provides flexibility without security risk — the source is restricted to the cluster SG only.'],
+        ['self = true',
+          '<strong>What it does:</strong> Allows traffic from the security group to itself. Since ALL worker nodes share the same node SG, this effectively means: <strong>any node can talk to any other node on any port.</strong><br><strong>Why it\'s needed:</strong > Kubernetes pod networking requires unrestricted node - to - node communication.When Pod A on Node 1 talks to Pod B on Node 2, the traffic goes: Pod A → veth → Node 1\'s eth0 → VPC network → Node 2\'s eth0 → Pod B.The node - level SG must allow this.Also needed for: CoreDNS queries(UDP / 53 between nodes), Prometheus scraping pod metrics across nodes, and service mesh traffic(Istio / Linkerd sidecar - to - sidecar).< br > <strong>Alternative:</strong> Using < code > source_security_group_id = aws_security_group.node.id</code > (referencing itself by ID) achieves the same result. < code > self = true</code > is just a cleaner syntax.']
+      ],
+      // ── Step 5: NACL vs Security Group (Concept) ──
+      [
+        ['aws_security_group_rule (SG)',
+          '<strong>What it does:</strong> Creates an allow rule on a Security Group. SGs are <strong>stateful</strong> — if you allow inbound on port 80, the response on port 52341 is <strong>automatically allowed</strong>. The SG remembers: "I let this connection in, so the reply goes out."<br><strong>Result:</strong> You write 1 rule. Return traffic just works. This is why SGs are simpler for most use cases.'],
+        ['aws_network_acl_rule (NACL)',
+          '<strong>What it does:</strong> Creates a rule on a Network ACL. NACLs are <strong>stateless</strong> — every packet is evaluated independently with no memory. If you allow inbound port 80 but forget to allow outbound ephemeral ports (1024-65535), the response is <strong>silently dropped</strong>.<br><strong>Result:</strong> You must write 2 rules (inbound + outbound). The browser just spins forever if you forget the outbound rule.'],
+        ['rule_action = "deny"',
+          '<strong>What it does:</strong> NACLs can <strong>deny</strong> traffic — the only VPC firewall that can do this. Security Groups can ONLY allow traffic (default deny everything, then add allow rules).<br><strong>Use case:</strong> Ban a specific IP address. Set rule_number = 50 (low number = evaluated first) with deny action. Rule 100 allows all traffic, but rule 50 fires first and blocks that IP.<br><strong>Why SGs can\'t do this:</strong> SGs have no deny rules. You can\'t say "allow everyone EXCEPT this IP." You can only remove the allow rule entirely, which blocks everyone.'],
+        ['rule_number = 50 vs 100',
+          '<strong>What it does:</strong> NACLs evaluate rules in <strong>ascending order</strong> by rule number. The first matching rule wins — subsequent rules are ignored for that packet.<br><strong>Example:</strong> Rule 50: DENY 192.168.1.50. Rule 100: ALLOW 0.0.0.0/0. Traffic from 192.168.1.50 matches rule 50 first → DENIED. All other traffic skips rule 50 and matches rule 100 → ALLOWED.<br><strong>Best practice:</strong> Leave gaps between rule numbers (50, 100, 200) so you can insert new rules later without renumbering.'],
+        ['egress = true/false',
+          '<strong>What it does:</strong> Determines if this NACL rule applies to <strong>outbound</strong> (egress = true) or <strong>inbound</strong> (egress = false) traffic.<br><strong>Critical for stateless NACLs:</strong> Because NACLs have no connection memory, you need separate rules for each direction. The outbound ephemeral port rule (1024-65535) is the one most people forget, causing mysterious "page won\'t load" issues where the request reaches the server but the response never gets back.']
+      ],
+      // ── Step 6: EKS Cluster ──
+      [
+        ['name = var.cluster_name',
+          '<strong>What it does:</strong> Sets the name of the EKS cluster as it appears in the AWS Console, CLI, and all API calls.<br><strong>Why it matters:</strong> The cluster name is used in many derived resources: IAM role ARNs contain it, CloudWatch log group path uses it (<code>/aws/eks/&lt;name&gt;/cluster</code>), kubectl context is named after it, and the OIDC issuer URL is unique per cluster name. Once set, the name <strong>cannot be changed</strong> without destroying and recreating the entire cluster.'],
+        ['version = var.kubernetes_version',
+          '<strong>What it does:</strong> Specifies the Kubernetes minor version (e.g., \"1.31\"). AWS manages the patch version automatically (e.g., 1.31.2).<br><strong>How upgrades work:</strong> EKS supports 4 minor versions simultaneously. When you change this value (e.g., 1.30 → 1.31), EKS performs a rolling update of the control plane — typically takes 25-45 minutes. Nodes must be updated separately to match. You can only upgrade <strong>one minor version at a time</strong> (no jumping from 1.29 to 1.31).<br><strong>Version skew:</strong> Nodes can be up to 2 minor versions behind the control plane (K8s policy). So a 1.31 control plane works with 1.29-1.31 nodes.'],
+        ['role_arn = var.cluster_role_arn',
+          '<strong>What it does:</strong> The IAM role that the EKS service assumes to manage AWS resources on your behalf. This role must have <code>AmazonEKSClusterPolicy</code> attached.<br><strong>What EKS does with this role:</strong> Creates and manages ENIs in your VPC, writes to CloudWatch Logs, manages the EKS-managed security group, creates and rotates the cluster certificate authority, and provisions the control plane infrastructure.<br><strong>Trust policy:</strong> The role\'s trust policy must allow < code > eks.amazonaws.com</code > to assume it.This is set up in the IAM module.'],
+        ['subnet_ids = var.subnet_ids',
+          '<strong>What it does:</strong> Lists the subnets where EKS places its managed ENIs (Elastic Network Interfaces). These ENIs are the <strong>communication bridge</strong> between the AWS-managed control plane and your worker nodes.<br><strong>Why private subnets?</strong> ENIs in private subnets ensure that control plane ↔ node traffic never traverses the public internet. It stays within the VPC via private IP addresses.<br><strong>AZ requirement:</strong> You should provide subnets in at least 2 AZs (we use 3). EKS creates ENIs in multiple AZs for high availability — if one AZ fails, the control plane can still reach nodes through ENIs in other AZs.'],
+        ['endpoint_public_access',
+          '<strong>What it does:</strong> When <code>true</code>, the Kubernetes API server is accessible from the internet via a public URL (e.g., <code>https://ABC123.gr7.us-east-1.eks.amazonaws.com</code>).<br><strong>Why enable?</strong> Developers need to run <code>kubectl</code> from their laptops. CI/CD pipelines (GitHub Actions, Jenkins) need to deploy to the cluster. Without public access, you\'d need a VPN or bastion host to reach the API.< br > <strong>Security risk:</strong> If < code > public_access_cidrs =["0.0.0.0/0"]</code >, anyone on the internet can attempt to authenticate. < strong > For production:</strong > either set this to < code > false</code > and use a VPN, or restrict < code > public_access_cidrs</code > to your office / VPN IP ranges.'],
+        ['endpoint_private_access',
+          '<strong>What it does:</strong> When <code>true</code>, the API server is accessible from within the VPC via private DNS and IP addresses.<br><strong>Why always enable?</strong> Worker nodes use the private endpoint to communicate with the API server. All kubelet traffic, pod scheduling, service discovery — everything goes through the private endpoint. If this is <code>false</code>, nodes must route through the public endpoint via the internet, which is slower, less secure, and fails if public access is disabled.<br><strong>Best practice:</strong> Always set to <code>true</code>. This is non-negotiable for production.'],
+        ['provider { key_arn = ... }',
+          '<strong>What it does:</strong> Enables <strong>envelope encryption</strong> for Kubernetes Secrets stored in etcd. The specified KMS key encrypts the Data Encryption Keys (DEKs) used to encrypt each Secret.<br><strong>Without this:</strong> Secrets in etcd are stored in base64 encoding — NOT encryption. Anyone with etcd access (or an etcd backup) can decode <code>echo "cGFzc3dvcmQ=" | base64 -d</code> to get the plaintext. With KMS encryption, even raw etcd access reveals nothing readable.<br><strong>Performance:</strong> Envelope encryption is fast because KMS only encrypts the small DEK, not the entire Secret. The DEK (which is faster, symmetric encryption) handles the actual data.'],
+        ['resources = ["secrets"]',
+          '<strong>What it does:</strong> Specifies which Kubernetes resource types to encrypt. Currently, EKS only supports <code>"secrets"</code>.<br><strong>What gets encrypted:</strong> ConfigMaps, Deployments, Pods, Services — these are stored as plaintext in etcd (they\'re not sensitive).Only Secrets contain sensitive data(passwords, tokens, certificates) and need encryption.< br > <strong>Future:</strong> AWS may add support for encrypting other resource types, but Secrets are the critical one.'],
+        ['enabled_cluster_log_types',
+          '<strong>What it does:</strong> Tells EKS which control plane log types to send to CloudWatch. When the variable is true, all 5 types are enabled. When false, an empty list means no logging.<br><strong>The 5 types:</strong> <code>api</code> — every API server request (GET/POST/DELETE). <code>audit</code> — who did what and when (compliance). <code>authenticator</code> — IAM-to-K8s authentication decisions. <code>controllerManager</code> — why replicas changed, why pods were evicted. <code>scheduler</code> — why a pod was placed on a specific node.<br><strong>Debugging example:</strong> If a pod keeps getting evicted, check <code>controllerManager</code> logs. If someone deleted a deployment, check <code>audit</code> logs.'],
+        ['depends_on = [aws_cloudwatch_log_group]',
+          '<strong>What it does:</strong> Forces Terraform to create the CloudWatch log group BEFORE creating the EKS cluster.<br><strong>The race condition:</strong> Without <code>depends_on</code>, Terraform might create both resources in parallel. If the EKS cluster starts first and logging is enabled, EKS looks for the log group, doesn\'t find it, and < strong > auto - creates one with no retention</strong > (logs kept forever = expensive). Then Terraform creates our log group — but it\'s too late, the default one already exists.<br><strong>When logging is disabled:</strong> <code>count = 0</code> means the log group doesn\'t exist, but < code > depends_on</code > gracefully becomes a no - op — Terraform handles this correctly.']
+      ],
+      // ── Step 6: OIDC Provider ──
+      [
+        ['url = ...identity[0].oidc[0].issuer',
+          '<strong>What it does:</strong> Retrieves the OIDC issuer URL that EKS automatically creates for the cluster (e.g., <code>https://oidc.eks.us-east-1.amazonaws.com/id/EXAMPLED539D4633E53DE1B71EXAMPLE</code>).<br><strong>What is OIDC?</strong> OpenID Connect is an identity protocol built on OAuth 2.0. EKS creates an OIDC identity provider for each cluster, which issues JWT tokens to Kubernetes ServiceAccounts. AWS IAM can then trust these tokens to grant IAM permissions to specific pods.<br><strong>The chain:</strong> EKS Cluster → creates OIDC issuer → we register it in IAM → IAM trusts tokens from this issuer → pods get IAM roles.'],
+        ['client_id_list = ["sts.amazonaws.com"]',
+          '<strong>What it does:</strong> Specifies the <strong>audience</strong> claim that must be present in the OIDC token. For EKS IRSA, this is always <code>sts.amazonaws.com</code>.<br><strong>How it\'s used:</strong > When a pod assumes an IAM role, the kubelet injects an OIDC token into the pod.The token contains an < code > aud</code > (audience) claim set to < code > sts.amazonaws.com</code >.When the pod calls < code > AssumeRoleWithWebIdentity</code >, STS checks that the token\'s audience matches this list. If it doesn\'t match, the request is rejected.< br > <strong>Security:</strong> This prevents tokens intended for other services from being used to assume IAM roles.'],
+        ['thumbprint_list = [...]',
+          '<strong>What it does:</strong> Provides the SHA-1 fingerprint of the TLS certificate used by the OIDC issuer endpoint. IAM uses this to verify the OIDC provider\'s identity.< br > <strong>Why it matters:</strong> Without the thumbprint, a man -in -the - middle attacker could impersonate the OIDC issuer, issue fake tokens, and gain IAM access to your AWS resources.The thumbprint ensures IAM only accepts tokens from the < strong > real</strong > OIDC endpoint.< br > <strong>Auto-fetched:</strong> The < code > data.tls_certificate</code > data source automatically fetches the certificate from the OIDC URL and extracts the fingerprint — you don\'t need to manually look it up.'],
+        ['count = var.enable_irsa ? 1 : 0',
+          '<strong>What it does:</strong> Conditionally creates the OIDC provider only when IRSA is enabled (default: true).<br><strong>When would you disable IRSA?</strong> Almost never. IRSA is the recommended way to give pods IAM permissions. You might disable it only if you\'re using an alternative like < strong > kube2iam</strong > or < strong > kiam</strong >, or if your cluster doesn\'t need any AWS API access from pods.<br><strong>Impact of disabling:</strong> Without IRSA, pods either share the node\'s IAM role(overly broad permissions) or need hardcoded AWS access keys(security anti - pattern).']
+      ],
+      // ── Step 7: VPC CNI ──
+      [
+        ['addon_name = "vpc-cni"',
+          '<strong>What it does:</strong> Installs the Amazon VPC Container Network Interface plugin as an EKS-managed addon.<br><strong>What VPC CNI does:</strong> It\'s the networking layer that gives each pod its own IP address.Unlike Flannel or Calico(which create overlay networks with encapsulation), VPC CNI assigns < strong > real VPC IP addresses</strong > from the node\'s subnet. This means pods are first-class VPC citizens — they can talk directly to RDS, ElastiCache, and other VPC resources without any NAT or tunneling.<br><strong>How:</strong> The CNI attaches secondary IP addresses to the node\'s ENI(Elastic Network Interface).Each secondary IP becomes a pod IP.When the node runs out of IPs, the CNI creates additional ENIs.'],
+        ['resolve_conflicts_on_create = "OVERWRITE"',
+          '<strong>What it does:</strong> If the VPC CNI was previously installed manually (e.g., via <code>kubectl apply</code> or Helm), this setting tells EKS to <strong>overwrite</strong> the existing installation with the managed version.<br><strong>Alternative:</strong> <code>"NONE"</code> would fail if a conflicting version exists. <code>"OVERWRITE"</code> is safer — it ensures the managed version always wins, preventing version drift between Terraform state and actual cluster state.<br><strong>When it matters:</strong> During cluster upgrades or when migrating from self-managed addons to EKS-managed addons.'],
+        ['addon_version = ... null',
+          '<strong>What it does:</strong> When set to a specific version (e.g., <code>"v1.15.1-eksbuild.1"</code>), that exact version is installed. When set to <code>null</code> (empty string in our variable), EKS picks the <strong>latest compatible version</strong> for your Kubernetes version.<br><strong>Best practice:</strong> For production, pin to a specific version for reproducibility. For dev/test, <code>null</code> (latest) is fine. Version compatibility is maintained by AWS — they won\'t install a CNI version that\'s incompatible with your K8s version.']
+      ],
+      // ── Step 8: kube-proxy ──
+      [
+        ['addon_name = "kube-proxy"',
+          '<strong>What it does:</strong> Installs kube-proxy as an EKS-managed addon. kube-proxy runs as a DaemonSet (one pod per node).<br><strong>What kube-proxy does:</strong> When you create a Kubernetes Service, kube-proxy programs network rules on every node to implement the Service. Example: Service <code>mysql-svc</code> with ClusterIP <code>10.96.0.15</code> backed by 3 pods. kube-proxy creates iptables rules: \"if destination is 10.96.0.15:3306, forward to one of [pod-ip-1, pod-ip-2, pod-ip-3]\" — this is L4 load balancing inside the cluster.<br><strong>Modes:</strong> <code>iptables</code> (default, uses kernel iptables rules) or <code>ipvs</code> (uses IP Virtual Server, better performance at 1000+ Services).'],
+        ['resolve_conflicts_on_update = "OVERWRITE"',
+          '<strong>What it does:</strong> When updating the addon version (e.g., during a K8s upgrade), any manual modifications to the kube-proxy configuration are overwritten with the managed defaults.<br><strong>Why overwrite?</strong> Manual changes to managed addons create drift — the running version differs from what Terraform expects. This can cause subtle networking issues that are hard to debug. <code>"OVERWRITE"</code> ensures consistency: what Terraform declares is what actually runs.']
+      ],
+      // ── Step 9: CoreDNS ──
+      [
+        ['addon_name = "coredns"',
+          '<strong>What it does:</strong> Installs CoreDNS as an EKS-managed addon. CoreDNS runs as a Deployment (default: 2 replicas for redundancy).<br><strong>What CoreDNS does:</strong> It\'s the cluster\'s DNS server. When pod code does <code>mysql-svc.default.svc.cluster.local</code>, this DNS query goes to CoreDNS (running at ClusterIP <code>10.96.0.10</code>), which returns the Service\'s ClusterIP.Without CoreDNS, every pod would need hardcoded IP addresses — impossible when IPs change with pod restarts.< br ><strong>DNS hierarchy:</strong> <code>&lt;service&gt;.&lt;namespace&gt;.svc.cluster.local</code>. Short names work within the same namespace: just < code > mysql - svc</code > resolves if you\'re in the same namespace.'],
+        ['depends_on = [aws_eks_node_group]',
+          '<strong>What it does:</strong> Forces Terraform to wait until node groups are created before installing CoreDNS.<br><strong>Why this is critical:</strong> CoreDNS is a <strong>Deployment</strong> (not a DaemonSet). It needs to schedule pods onto running nodes. If CoreDNS is installed before any nodes exist, the pods have nowhere to run — they stay in <code>Pending</code> state, and the addon reports as <strong>\"Degraded\"</strong> in AWS Console. This doesn\'t affect the other addons: VPC CNI and kube - proxy are DaemonSets that automatically schedule when nodes appear.< br > <strong>Note:</strong> kube - proxy and VPC CNI do NOT have this depends_on because DaemonSets simply wait for nodes to appear.']
+      ],
+      // ── Step 10: Launch Templates ──
+      [
+        ['for_each = var.node_groups',
+          '<strong>What it does:</strong> Creates one launch template per entry in the <code>node_groups</code> map. If your config defines <code>general</code> and <code>spot</code> groups, you get 2 templates.<br><strong>Why for_each instead of count?</strong> <code>for_each</code> creates resources keyed by name (\"general\", \"spot\"), so adding/removing a group doesn\'t affect others.With < code > count</code >, resources are indexed by number — removing index 0 would renumber everything, causing unnecessary replacements.< br ><strong>Accessed via:</strong> <code>each.key</code> = group name(\"general\"), <code>each.value</code> = the config object (instance_types, scaling, etc.).'],
+        ['volume_type = "gp3"',
+          '<strong>What it does:</strong> Uses General Purpose SSD v3 for the root EBS volume on each node.<br><strong>gp3 vs gp2:</strong> <code>gp2</code> uses a burst credit model — baseline IOPS depends on volume size (3 IOPS/GB). A 20GB volume gets only 100 IOPS baseline (bursting to 3000). <code>gp3</code> provides a <strong>fixed baseline</strong> of 3000 IOPS and 125 MiB/s throughput regardless of size. A 20GB gp3 volume performs the same as a 1000GB gp3 volume.<br><strong>Cost:</strong> gp3 is ~20% cheaper than gp2 for the same performance. No reason to use gp2 for new deployments.'],
+        ['encrypted = true',
+          '<strong>What it does:</strong> Enables encryption at rest for the EBS volume. All data written to the volume is encrypted before being stored, and decrypted when read.<br><strong>How it works:</strong> AWS uses a KMS key (default AWS-managed key for EBS, or a custom key if specified) to encrypt the volume\'s data.The encryption / decryption happens transparently at the block level — the OS and applications don\'t need to know about it.<br><strong>What\'s encrypted:</strong > Everything on the volume: OS files, container images, container logs written to disk, any temporary files created by pods, and the kubelet\'s internal state.<br><strong>Compliance:</strong> Many frameworks (SOC2, HIPAA, PCI-DSS) require encryption at rest as a baseline control.'],
+        ['http_tokens = "required"',
+          '<strong>What it does:</strong> Enforces IMDSv2 (Instance Metadata Service version 2) by requiring a session token for all metadata requests. This blocks IMDSv1, which allows simple unauthenticated GET requests.<br><strong>Why this is CRITICAL security:</strong> The Instance Metadata Service at <code>169.254.169.254</code> provides IAM credentials to instances. In 2019, the Capital One breach exploited IMDSv1: an attacker used a Server-Side Request Forgery (SSRF) vulnerability to make the web server request <code>http://169.254.169.254/latest/meta-data/iam/security-credentials/role-name</code> — a simple GET request that returned IAM credentials.<br><strong>How IMDSv2 prevents this:</strong> IMDSv2 requires a PUT request to get a session token first, then use that token in a header for subsequent GET requests. SSRF attacks typically can only trigger GET requests — they cannot perform the PUT-then-GET sequence. This breaks the attack chain.<br><strong>Never set to "optional":</strong> That allows both v1 and v2, defeating the purpose.'],
+        ['http_put_response_hop_limit = 2',
+          '<strong>What it does:</strong> Sets the maximum number of network hops for the IMDSv2 token response. Default is 1 hop (reaches the instance only). Setting to 2 allows containers to access IMDS.<br><strong>Why 2 hops?</strong> In Kubernetes, pods run inside containers, which adds one network hop. The path is: Container → veth bridge → Instance. That\'s 2 hops.With hop_limit = 1, the token response would expire before reaching the container, and pods couldn\'t access instance metadata (needed for IRSA and cloud-provider features).<br><strong>Security:</strong> Don\'t set higher than 2 unless you have a specific reason.Higher values could allow metadata access from further in the network.'],
+        ['associate_public_ip_address = false',
+          '<strong>What it does:</strong> Prevents EC2 instances launched from this template from receiving public IP addresses.<br><strong>Why no public IPs?</strong> Worker nodes are placed in <strong>private subnets</strong>. They don\'t need(and shouldn\'t have) direct internet access. For outbound connections (pulling container images, calling AWS APIs), nodes use the NAT Gateway in the public subnet.<br><strong>Defense in depth:</strong> Even if a security group misconfiguration opens a port, without a public IP, the node is unreachable from the internet. An attacker would need to first compromise something inside the VPC.<br><strong>Exceptions:</strong> If you\'re running nodes in public subnets(not recommended for production), you\'d set this to true.'],
+        ['monitoring { enabled = ... }',
+          '<strong>What it does:</strong> When <code>true</code>, enables EC2 Detailed Monitoring — CloudWatch metrics are collected every <strong>1 minute</strong> instead of the default 5 minutes.<br><strong>When you need it:</strong> Faster metrics enable the Cluster Autoscaler and Horizontal Pod Autoscaler to react more quickly to load spikes. Without it, there\'s a 5 - minute delay before autoscaling sees the increased CPU / memory.< br > <strong>Cost:</strong> ~$2.10 per instance per month.For a 3 - node cluster, that\'s ~$6.30/month.<br><strong>Alternative:</strong> Use Prometheus + node_exporter + Grafana for much more granular metrics (per-pod, per-container) at the cost of self-managing the monitoring stack.']
+      ],
+      // ── Step 11: Node Groups ──
+      [
+        ['node_group_name = each.key',
+          '<strong>What it does:</strong> Names the node group — visible in the AWS Console under EKS → Clusters → Compute tab. Examples: \"general\", \"spot\", \"gpu\".<br><strong>Purpose of naming:</strong> Helps identify node groups when debugging. If you see unhealthy nodes, you can quickly determine if it\'s the \"general\" (stable) or \"spot\" (interruptible) group. Also used in Kubernetes node labels: nodes in the \"spot\" group get label <code>eks.amazonaws.com/nodegroup=spot</code>.'],
+        ['scaling_config { desired/max/min }',
+          '<strong>desired_size:</strong> How many instances the group starts with. Also the current target count. When you first deploy, AWS launches this many EC2 instances.<br><strong>min_size:</strong> The absolute minimum number of instances. Even during aggressive scale-down, the group never goes below this. Set to at least 1 (or 2 for HA) to ensure pods always have somewhere to run.<br><strong>max_size:</strong> The maximum number of instances. The Cluster Autoscaler will never scale beyond this, even if there are pending pods. This is your <strong>cost ceiling</strong>.<br><strong>How autoscaling works:</strong> The Cluster Autoscaler watches for pods that can\'t be scheduled(Pending state).When it finds them, it increases < code > desired_size</code > (up to < code > max_size</code >).When nodes are underutilized, it decreases < code > desired_size</code > (down to < code > min_size</code >).'],
+        ['capacity_type = ... "ON_DEMAND"',
+          '<strong>ON_DEMAND:</strong> Standard EC2 instances. You pay per-second of usage. Instances are reliable — AWS will never take them away. Use for: production workloads, databases, stateful applications, anything that can\'t handle interruption.< br > <strong>SPOT:</strong> Instances from AWS\'s spare capacity, priced up to <strong>90% cheaper</strong> than ON_DEMAND. However, AWS can reclaim them with a <strong>2-minute warning</strong> when capacity is needed. Use for: batch processing, CI/CD runners, dev/test environments, data analysis — anything that can restart gracefully.<br><strong>lookup() with default:</strong> <code>lookup(each.value, "capacity_type", "ON_DEMAND")</code> means: if the node group config doesn\'t specify capacity_type, default to ON_DEMAND.This makes ON_DEMAND the safe default.'],
+        ['dynamic "taint" { ... }',
+          '<strong>What it does:</strong> The <code>dynamic</code> block is Terraform\'s way of creating a < strong > variable number of repeated blocks</strong >.It loops over the < code > taints</code > list and generates one < code > taint</code > block per item.< br > <strong>What are taints?</strong> Taints are node properties that < strong > repel pods</strong >.A tainted node refuses to schedule pods unless the pod has a matching < strong > toleration</strong >.Example: Spot nodes have taint < code > spot=true: NoSchedule</code >.A pod without < code > toleration: spot = true</code > will NEVER be scheduled on a Spot node.< br > <strong>Why taint Spot nodes?</strong> You don\'t want your production database accidentally running on a Spot instance that can be terminated with 2 minutes notice. Only pods that explicitly tolerate interruption (batch jobs, CI/CD) should run there.<br><strong>Effects:</strong> <code>NoSchedule</code> = don\'t place new pods here. < code > NoExecute</code > = evict existing pods too. < code > PreferNoSchedule</code > = avoid but allow if no other option.'],
+        ['depends_on = [vpc_cni, kube_proxy]',
+          '<strong>What it does:</strong> Ensures VPC CNI and kube-proxy addons are installed BEFORE node groups are created.<br><strong>Why this order matters:</strong> When a new EC2 instance joins the cluster, it runs a bootstrap script that: 1) Contacts the EKS API server, 2) Downloads and applies VPC CNI configuration (to assign pod IPs), 3) Starts kube-proxy (to enable Service routing). If these addons aren\'t installed yet, the node joins but can\'t configure networking — pods on this node would have no IPs and no Service access.<br><strong>Note:</strong> CoreDNS is NOT in this list because the node group doesn\'t need DNS to join — CoreDNS depends on node groups, not the other way around.'],
+        ['ignore_changes = [desired_size]',
+          '<strong>What it does:</strong> Tells Terraform to <strong>ignore</strong> any changes to <code>scaling_config[0].desired_size</code> after the initial creation.<br><strong>Why this is critical:</strong> The Cluster Autoscaler (a Kubernetes Deployment you install separately) dynamically adjusts <code>desired_size</code> based on pod demand. For example: autoscaler scales from 2 → 5 nodes to handle traffic. Without <code>ignore_changes</code>, the next <code>terraform apply</code> would see \"desired_size changed from 2 to 5\" and <strong>reset it back to 2</strong> — killing 3 nodes and disrupting running pods.<br><strong>With ignore_changes:</strong> Terraform sets the initial desired_size (from tfvars) but then hands control to the autoscaler. Terraform never touches it again, even if the actual value differs from the config.<br><strong>Important:</strong> This means <code>terraform plan</code> won\'t show desired_size changes — that\'s intentional.']
+      ]
+    ];
+
+    // ─── Render content ───
+    let html = '', sn = 0, sr = '', tocHtml = '', pn = 0, globalStep = 0;
     STEPS.forEach(phase => {
-      html += `<div class="phase"><h2>${phase.phase}</h2>`;
+      pn++;
+      tocHtml += `<a href="#${phase.id}">${phase.phase.replace(/Phase \d+ — /, '')}</a>`;
+      html += `<div class="phase" id="${phase.id}"><h2><span class="phase-num">${pn}</span>${phase.phase}</h2>`;
       phase.steps.forEach(s => {
-        stepNum++;
-        html += `<div class="step"><h3><span class="step-number">${stepNum}</span>${s.title} <span><span class="badge ${BADGES[s.cat]}">${BADGE_LABEL[s.cat]}</span> ${s.time}</span></h3>`;
-        html += `<pre><code class="language-hcl">${escHtml(s.hcl)}</code></pre>`;
+        sn++;
+        html += `<div class="step"><h3><span class="sn">${sn}</span>${s.title} <span><span class="badge ${BADGES[s.cat]}">${BL[s.cat]}</span> ${s.time}</span></h3>`;
+        // K8s Purpose block
+        if (PURPOSES[globalStep]) html += `<div class="k8s-purpose"><h4>☸ Purpose in Kubernetes</h4><p>${PURPOSES[globalStep]}</p></div>`;
+        html += `<pre><button class="copy-btn" onclick="navigator.clipboard.writeText(this.parentElement.querySelector('code').textContent)">Copy</button><code class="language-hcl">${esc(s.hcl)}</code></pre>`;
+        // Line-by-line
+        if (LINES[globalStep] && LINES[globalStep].length) {
+          html += `<details class="line-detail"><summary>📖 Line-by-Line Explanation (${LINES[globalStep].length} annotations)</summary><table class="line-table">`;
+          LINES[globalStep].forEach(l => { html += `<tr><td>${esc(l[0])}</td><td>${l[1]}</td></tr>`; });
+          html += `</table></details>`;
+        }
         if (s.d2) html += `<div class="d2-diagram loading" data-d2="${btoa(unescape(encodeURIComponent(s.d2)))}">Loading diagram...</div>`;
         if (s.explain) html += `<div class="explain">${s.explain}</div>`;
+        if (s.warning) html += `<div class="warning">⚠️ ${s.warning}</div>`;
         if (s.note) html += `<div class="note">💡 ${s.note}</div>`;
         html += `</div>`;
-        summaryRows += `<tr class="${s.highlight?'highlight-row':''}"><td>${stepNum}</td><td>${s.title}</td><td><span class="badge ${BADGES[s.cat]}">${BADGE_LABEL[s.cat]}</span></td><td>${s.time}</td></tr>`;
+        sr += `<tr class="${s.hl ? 'hl' : ''}"><td>${sn}</td><td>${s.title}</td><td><span class="badge ${BADGES[s.cat]}">${BL[s.cat]}</span></td><td>${s.time}</td></tr>`;
+        globalStep++;
       });
       html += `</div>`;
     });
-    summaryRows += `<tr class="highlight-row"><td></td><td><strong>Total: ~30 resources</strong></td><td></td><td><strong>~17 min</strong></td></tr>`;
+    sr += `<tr class="hl"><td></td><td><strong>Total: ~30 resources</strong></td><td></td><td><strong>~17 min</strong></td></tr>`;
 
+    document.getElementById('toc').innerHTML += ' ' + tocHtml;
     document.getElementById('content').innerHTML = html;
-    document.getElementById('summary-table').innerHTML = summaryRows;
 
-    function escHtml(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+    // ─── Tables (inject after content) ───
+    document.querySelector('.container').insertAdjacentHTML('beforeend', `
+<div class="summary" id="variables"><h2 style="color:#bd93f9;margin-bottom:1rem">📥 Input Variables</h2>
+<table class="var-table"><thead><tr><th>Variable</th><th>Type</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>cluster_name</code></td><td><code>string</code></td><td>—</td><td>Name of the EKS cluster</td></tr>
+<tr><td><code>kubernetes_version</code></td><td><code>string</code></td><td><code>"1.31"</code></td><td>K8s version</td></tr>
+<tr><td><code>vpc_id</code></td><td><code>string</code></td><td>—</td><td>VPC ID from module.vpc</td></tr>
+<tr><td><code>subnet_ids</code></td><td><code>list(string)</code></td><td>—</td><td>Private subnet IDs</td></tr>
+<tr><td><code>cluster_role_arn</code></td><td><code>string</code></td><td>—</td><td>Cluster IAM role from module.iam</td></tr>
+<tr><td><code>node_role_arn</code></td><td><code>string</code></td><td>—</td><td>Node IAM role from module.iam</td></tr>
+<tr><td><code>endpoint_public_access</code></td><td><code>bool</code></td><td><code>true</code></td><td>Public API endpoint</td></tr>
+<tr><td><code>endpoint_private_access</code></td><td><code>bool</code></td><td><code>true</code></td><td>Private API endpoint (always recommended)</td></tr>
+<tr><td><code>public_access_cidrs</code></td><td><code>list</code></td><td><code>["0.0.0.0/0"]</code></td><td>CIDRs for public API ⚠️</td></tr>
+<tr><td><code>node_groups</code></td><td><code>map(object)</code></td><td>—</td><td>Node group configs (instances, scaling, taints)</td></tr>
+<tr><td><code>enable_irsa</code></td><td><code>bool</code></td><td><code>true</code></td><td>Enable OIDC for IRSA</td></tr>
+<tr><td><code>enable_cluster_logging</code></td><td><code>bool</code></td><td><code>false</code></td><td>Control plane logging ($)</td></tr>
+<tr><td><code>enable_detailed_monitoring</code></td><td><code>bool</code></td><td><code>false</code></td><td>1-min EC2 metrics ($)</td></tr>
+<tr><td><code>coredns_version</code></td><td><code>string</code></td><td><code>""</code></td><td>CoreDNS version (""=latest)</td></tr>
+<tr><td><code>kube_proxy_version</code></td><td><code>string</code></td><td><code>""</code></td><td>kube-proxy version</td></tr>
+<tr><td><code>vpc_cni_version</code></td><td><code>string</code></td><td><code>""</code></td><td>VPC CNI version</td></tr>
+<tr><td><code>tags</code></td><td><code>map(string)</code></td><td><code>{}</code></td><td>Tags for all resources</td></tr>
+</tbody></table></div>
+<div class="summary" id="outputs"><h2 style="color:#bd93f9;margin-bottom:1rem">📤 Outputs</h2>
+<table class="var-table"><thead><tr><th>Output</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>cluster_id</code> / <code>cluster_name</code> / <code>cluster_arn</code></td><td>Cluster identifiers</td></tr>
+<tr><td><code>cluster_endpoint</code></td><td>HTTPS URL for the K8s API server</td></tr>
+<tr><td><code>cluster_version</code></td><td>Running Kubernetes version</td></tr>
+<tr><td><code>cluster_certificate_authority_data</code></td><td>Base64 CA cert (sensitive — for kubectl trust)</td></tr>
+<tr><td><code>cluster_security_group_id</code></td><td>SG for control plane ENIs</td></tr>
+<tr><td><code>node_security_group_id</code></td><td>SG for worker nodes</td></tr>
+<tr><td><code>kms_key_id</code> / <code>kms_key_arn</code></td><td>KMS key for secrets encryption</td></tr>
+<tr><td><code>cluster_oidc_issuer_url</code></td><td>OIDC issuer URL for creating IRSA roles</td></tr>
+<tr><td><code>oidc_provider_arn</code></td><td>OIDC provider ARN for IRSA trust policies</td></tr>
+<tr><td><code>cloudwatch_log_group_name</code></td><td>CloudWatch log group (empty if logging disabled)</td></tr>
+<tr><td><code>node_groups</code></td><td>Map of all created node group resources</td></tr>
+</tbody></table></div>
+<div class="summary" id="build-summary"><h2 style="color:#bd93f9;margin-bottom:1rem">📊 Build Summary</h2>
+<table><thead><tr><th>Step</th><th>Resource</th><th>Category</th><th>Time</th></tr></thead><tbody>${sr}</tbody></table></div>
+`);
+
+    function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
     hljs.highlightAll();
 
+    // ─── D2 Diagrams via Kroki ───
     document.querySelectorAll('.d2-diagram[data-d2]').forEach(el => {
       const src = decodeURIComponent(escape(atob(el.dataset.d2)));
       fetch('https://kroki.io/d2/svg', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: src })
         .then(r => { if (!r.ok) throw new Error(r.status); return r.text() })
         .then(svg => { el.innerHTML = svg; el.classList.remove('loading'); el.classList.add('loaded') })
-        .catch(e => { el.innerHTML = `<span style="color:#ff5555">Diagram failed: ${e.message}</span>`; el.classList.remove('loading') });
+        .catch(e => { el.innerHTML = `<span style="color:#ff5555">Diagram error: ${e.message}</span>`; el.classList.remove('loading') });
     });
 
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry, i) => {
-        if (entry.isIntersecting) { setTimeout(() => entry.target.classList.add('visible'), i * 100); observer.unobserve(entry.target); }
-      });
-    }, { threshold: 0.1 });
-    document.querySelectorAll('.phase, .step, .summary').forEach(el => observer.observe(el));
+    // ─── GSAP ScrollTrigger Animations ───
+    gsap.registerPlugin(ScrollTrigger);
+    gsap.utils.toArray('.phase').forEach(el => {
+      gsap.from(el, { scrollTrigger: { trigger: el, start: 'top 85%', toggleActions: 'play none none none' }, opacity: 0, y: 50, duration: .8, ease: 'power3.out' });
+    });
+    gsap.utils.toArray('.step').forEach((el, i) => {
+      gsap.from(el, { scrollTrigger: { trigger: el, start: 'top 88%', toggleActions: 'play none none none' }, opacity: 0, x: -40, duration: .6, delay: i % 3 * .1, ease: 'back.out(1.2)' });
+    });
+    gsap.utils.toArray('.summary').forEach(el => {
+      gsap.from(el, { scrollTrigger: { trigger: el, start: 'top 85%', toggleActions: 'play none none none' }, opacity: 0, y: 40, duration: .7, ease: 'power2.out' });
+    });
+    gsap.from('.overview', { opacity: 0, y: 30, duration: 1, delay: .3, ease: 'power3.out' });
+    gsap.from('.toc', { opacity: 0, y: 20, duration: .8, delay: .5, ease: 'power2.out' });
+    // Animate K8s purpose blocks
+    gsap.utils.toArray('.k8s-purpose').forEach(el => {
+      gsap.from(el, { scrollTrigger: { trigger: el, start: 'top 90%', toggleActions: 'play none none none' }, opacity: 0, x: 30, duration: .5, ease: 'power2.out' });
+    });
+    // Animate line-detail blocks
+    gsap.utils.toArray('.line-detail').forEach(el => {
+      gsap.from(el, { scrollTrigger: { trigger: el, start: 'top 92%', toggleActions: 'play none none none' }, opacity: 0, y: 20, duration: .4, ease: 'power2.out' });
+    });
+    // Animate code blocks with a subtle slide
+    gsap.utils.toArray('pre').forEach(el => {
+      gsap.from(el, { scrollTrigger: { trigger: el, start: 'top 90%', toggleActions: 'play none none none' }, opacity: 0, y: 15, duration: .5, ease: 'power2.out' });
+    });
+    // Stagger table rows on scroll
+    gsap.utils.toArray('.var-table tbody, .summary table tbody').forEach(tb => {
+      gsap.from(tb.querySelectorAll('tr'), { scrollTrigger: { trigger: tb, start: 'top 85%', toggleActions: 'play none none none' }, opacity: 0, x: -20, duration: .3, stagger: .05, ease: 'power2.out' });
+    });
+    // Animate diagrams
+    gsap.utils.toArray('.d2-diagram').forEach(el => {
+      gsap.from(el, { scrollTrigger: { trigger: el, start: 'top 88%', toggleActions: 'play none none none' }, opacity: 0, scale: .9, duration: .6, ease: 'back.out(1.4)' });
+    });
 
+    // ─── Progress bar + Back to top ───
     window.addEventListener('scroll', () => {
       const h = document.documentElement;
-      document.getElementById('progressBar').style.width = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100 + '%';
+      const pct = h.scrollTop / (h.scrollHeight - h.clientHeight) * 100;
+      document.getElementById('progressBar').style.width = pct + '%';
+      document.getElementById('backTop').classList.toggle('show', h.scrollTop > 400);
     });
+
+    // ─── Smooth scroll for TOC links ───
+    document.querySelectorAll('.toc a').forEach(a => a.addEventListener('click', e => {
+      e.preventDefault();
+      document.querySelector(a.getAttribute('href')).scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
   </script>
 </body>
 
