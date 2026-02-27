@@ -634,62 +634,50 @@ spec:
 sequenceDiagram
     autonumber
 
-    participant DEV as Developer
-    participant K8S as Kubernetes (EKS)
-    participant WEBHOOK as EKS Webhook
-    participant POD as Pod (App)
-    participant SDK as AWS SDK (inside Pod)
-    participant STS as AWS STS
-    participant OIDC as OIDC Provider<br/>(oidc.eks.amazonaws.com)
-    participant IAM as AWS IAM
-    participant S3 as AWS S3
+    participant DEV as 👨‍💻 Developer
+    participant K8S as ☸ EKS Cluster
+    participant POD as 📦 Pod + AWS SDK
+    participant STS as 🔐 AWS STS
+    participant OIDC as 🌐 OIDC Provider
+    participant S3 as 🪣 AWS S3
 
-    rect rgb(220, 240, 220)
-        Note over DEV, K8S: SETUP PHASE — Done once by Developer
+    rect rgb(46, 125, 50)
+        Note over DEV,K8S: 🟢 STEP 1 — SETUP (done once)
         DEV->>K8S: kubectl apply -f backend.yaml
-        Note over K8S: ServiceAccount created with annotation:<br/>eks.amazonaws.com/role-arn: arn:aws:iam::123:role/s3-role
+        K8S->>K8S: Creates ServiceAccount with annotation
+        Note over K8S: annotation = role ARN
     end
 
-    rect rgb(220, 220, 240)
-        Note over K8S, POD: POD START PHASE — Automatic by EKS
-        K8S->>WEBHOOK: Pod is starting, check ServiceAccount
-        WEBHOOK->>WEBHOOK: Sees role-arn annotation on SA
-        WEBHOOK->>POD: Auto-inject into Pod:<br/>AWS_ROLE_ARN + AWS_WEB_IDENTITY_TOKEN_FILE
-        WEBHOOK->>POD: Auto-mount JWT token file
-        Note over POD: JWT Token (auto-created by EKS):<br/>{ iss: "https://oidc.eks.../id/XXX" ← OIDC URL lives here<br/>  sub: "system:serviceaccount:backend:backend-api-sa"<br/>  aud: ["sts.amazonaws.com"] }
+    rect rgb(21, 101, 192)
+        Note over K8S,POD: 🔵 STEP 2 — POD STARTS (automatic)
+        K8S->>K8S: EKS Webhook detects role-arn annotation
+        K8S->>POD: Injects AWS_ROLE_ARN env var
+        K8S->>POD: Mounts JWT token file
+        Note over POD: JWT contains:<br/>iss = OIDC URL<br/>sub = backend:backend-api-sa<br/>aud = sts.amazonaws.com
     end
 
-    rect rgb(240, 230, 220)
-        Note over POD, S3: RUNTIME PHASE — App accesses S3
-        POD->>SDK: s3.get_object(Bucket="my-bucket")<br/>(no credentials in code)
-        SDK->>SDK: Reads AWS_ROLE_ARN from env
-        SDK->>SDK: Reads JWT token from file
-        SDK->>STS: AssumeRoleWithWebIdentity(RoleArn, JWT token)
+    rect rgb(230, 81, 0)
+        Note over POD,STS: 🟠 STEP 3 — APP CALLS AWS (automatic)
+        POD->>POD: App: s3.get_object("my-bucket")
+        POD->>POD: SDK reads token + role ARN
+        POD->>STS: AssumeRoleWithWebIdentity
     end
 
-    rect rgb(240, 220, 220)
-        Note over STS, IAM: AWS VERIFICATION PHASE — Automatic by AWS
-        STS->>STS: Opens JWT, reads iss = OIDC URL
-        STS->>IAM: Is this OIDC URL a trusted provider?
-        IAM->>STS: Yes ✅
-        STS->>OIDC: GET /.well-known/openid-configuration
-        OIDC->>STS: Returns public keys URL
-        STS->>OIDC: GET /keys
-        OIDC->>STS: Returns public keys
-        STS->>STS: Verifies JWT signature ✅
-        STS->>IAM: Check trust policy conditions
-        IAM->>STS: sub must = system:serviceaccount:backend:backend-api-sa
-        STS->>STS: sub matches ✅  aud matches ✅
+    rect rgb(136, 14, 79)
+        Note over STS,OIDC: 🟣 STEP 4 — AWS VERIFIES TOKEN
+        STS->>OIDC: Fetch public keys from OIDC URL
+        OIDC->>STS: Returns signing keys
+        STS->>STS: Verify JWT signature ✅
+        STS->>STS: Check sub matches trust policy ✅
+        STS->>STS: Check aud matches ✅
     end
 
-    rect rgb(230, 220, 240)
-        Note over STS, S3: CREDENTIALS PHASE
-        STS->>SDK: Temporary credentials (valid 1hr, auto-rotated)
-        SDK->>S3: GET s3://my-bucket/file.txt with temp credentials
-        S3->>IAM: Does role/s3-role have s3:GetObject permission?
-        IAM->>S3: Yes ✅
-        S3->>SDK: Returns file ✅
-        SDK->>POD: Returns file to your app ✅
+    rect rgb(27, 94, 32)
+        Note over STS,S3: 🟢 STEP 5 — ACCESS GRANTED
+        STS->>POD: Temporary credentials (1hr)
+        POD->>S3: GET s3://my-bucket/file.txt
+        S3->>S3: IAM checks role permissions ✅
+        S3->>POD: Returns file ✅
     end
 ```
 
@@ -699,29 +687,37 @@ sequenceDiagram
 
 ```mermaid
 flowchart TD
-    A([Developer applies YAML]) -->|kubectl apply| B[K8s creates ServiceAccount\nwith role-arn annotation]
-    B --> C{Pod Starts}
-    C -->|EKS Webhook auto-injects| D[Pod gets:\nAWS_ROLE_ARN env var\nJWT token file with iss=OIDC URL]
-    D --> E[App calls AWS SDK\ns3.get_object\nno credentials in code]
-    E -->|SDK reads token + role ARN automatically| F[SDK calls STS\nAssumeRoleWithWebIdentity\nJWT token + Role ARN]
-    F --> G{AWS STS Verification}
-    G -->|1. Read iss from token| H[Find registered OIDC Provider]
-    H -->|2. Call OIDC URL| I[Verify JWT signature\nwith public keys]
-    I -->|3. Check trust policy| J{sub matches?\naud matches?}
-    J -->|✅ Yes| K[STS issues Temporary\nCredentials — valid 1hr]
-    J -->|❌ No| L([Access Denied])
-    K --> M[SDK calls S3\nwith temp credentials]
-    M --> N{S3 checks IAM Policy}
-    N -->|✅ Permission exists| O([File returned to app ✅])
-    N -->|❌ No permission| P([Access Denied])
+    A([👨‍💻 Developer applies YAML]):::green -->|kubectl apply| B[☸ K8s creates ServiceAccount<br/>with role-arn annotation]:::blue
 
-    style A fill:#4CAF50,color:#fff
-    style O fill:#4CAF50,color:#fff
-    style L fill:#f44336,color:#fff
-    style P fill:#f44336,color:#fff
-    style D fill:#2196F3,color:#fff
-    style K fill:#9C27B0,color:#fff
-    style G fill:#FF9800,color:#fff
+    B --> C{📦 Pod Starts}:::orange
+
+    C -->|EKS Webhook| D[Pod receives:<br/>✅ AWS_ROLE_ARN env var<br/>✅ JWT token file<br/>✅ iss = OIDC URL inside token]:::blue
+
+    D --> E[🐍 App calls AWS SDK<br/>s3.get_object<br/>NO credentials in code]:::default
+
+    E -->|SDK auto-reads<br/>token + role ARN| F[📤 SDK calls STS<br/>AssumeRoleWithWebIdentity<br/>sends JWT + Role ARN]:::orange
+
+    F --> G{🔐 AWS STS Verification}:::purple
+
+    G -->|1. Read iss claim| H[🌐 Find OIDC Provider<br/>fetch public keys]:::default
+    H -->|2. Verify signature| I[✍️ JWT signature valid?<br/>using OIDC public keys]:::default
+    I -->|3. Check conditions| J{sub matches?<br/>aud matches?}:::orange
+
+    J -->|✅ ALL match| K[🎫 STS issues<br/>Temp Credentials<br/>valid 1 hour]:::purple
+    J -->|❌ Mismatch| L([🚫 ACCESS DENIED]):::red
+
+    K --> M[📤 SDK calls S3<br/>with temp credentials]:::default
+    M --> N{🪣 S3 checks<br/>IAM Policy}:::orange
+
+    N -->|✅ Has permission| O([✅ File returned!]):::green
+    N -->|❌ No permission| P([🚫 ACCESS DENIED]):::red
+
+    classDef green fill:#2e7d32,color:#fff,stroke:#1b5e20,stroke-width:2px,font-size:16px
+    classDef blue fill:#1565c0,color:#fff,stroke:#0d47a1,stroke-width:2px,font-size:16px
+    classDef orange fill:#e65100,color:#fff,stroke:#bf360c,stroke-width:2px,font-size:16px
+    classDef purple fill:#6a1b9a,color:#fff,stroke:#4a148c,stroke-width:2px,font-size:16px
+    classDef red fill:#c62828,color:#fff,stroke:#b71c1c,stroke-width:3px,font-size:16px
+    classDef default fill:#37474f,color:#fff,stroke:#263238,stroke-width:1px,font-size:14px
 ```
 
 ---
@@ -730,35 +726,50 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    subgraph YAML["Your YAML (you write)"]
-        Y1[ServiceAccount name]
-        Y2[Namespace]
-        Y3[Role ARN annotation]
-        Y4[serviceAccountName in pod]
+    subgraph YAML["📝 Your YAML — you write this"]
+        direction TB
+        Y1["🏷️ ServiceAccount name"]
+        Y2["📁 Namespace"]
+        Y3["🔗 Role ARN annotation"]
+        Y4["📦 serviceAccountName in Pod"]
     end
 
-    subgraph TOKEN["JWT Token (EKS auto-creates)"]
-        T1["iss = OIDC URL ← this IS the OIDC"]
-        T2[sub = namespace:SA name]
-        T3[aud = sts.amazonaws.com]
-        T4[exp = expiry time]
+    subgraph TOKEN["🎫 JWT Token — EKS auto-creates"]
+        direction TB
+        T1["🌐 iss = OIDC URL"]
+        T2["👤 sub = namespace:SA"]
+        T3["🎯 aud = sts.amazonaws.com"]
+        T4["⏰ exp = expiry time"]
     end
 
-    subgraph AWS["AWS — Terraform pre-created"]
-        A1[OIDC Provider registered]
-        A2[IAM Role + Trust Policy]
-        A3[IAM Policy with S3 permission]
+    subgraph AWS["☁️ AWS — Terraform creates"]
+        direction TB
+        A1["🌐 OIDC Provider"]
+        A2["🔐 IAM Role + Trust"]
+        A3["📋 IAM Policy"]
     end
 
-    Y1 -->|must match| T2
-    Y3 -->|points to| A2
-    T1 -->|verified against| A1
-    T2 -->|checked against| A2
-    A2 -->|has attached| A3
+    Y1 ==>|must match| T2
+    Y3 ==>|points to| A2
+    T1 ==>|verified against| A1
+    T2 ==>|checked against| A2
+    A2 ==>|has attached| A3
 
-    style YAML fill:#e8f5e9
-    style TOKEN fill:#e3f2fd
-    style AWS fill:#fce4ec
+    style YAML fill:#1b5e20,color:#fff,stroke:#2e7d32,stroke-width:3px
+    style TOKEN fill:#0d47a1,color:#fff,stroke:#1565c0,stroke-width:3px
+    style AWS fill:#b71c1c,color:#fff,stroke:#c62828,stroke-width:3px
+
+    style Y1 fill:#2e7d32,color:#fff,stroke:#43a047,stroke-width:2px
+    style Y2 fill:#2e7d32,color:#fff,stroke:#43a047,stroke-width:2px
+    style Y3 fill:#2e7d32,color:#fff,stroke:#43a047,stroke-width:2px
+    style Y4 fill:#2e7d32,color:#fff,stroke:#43a047,stroke-width:2px
+    style T1 fill:#1565c0,color:#fff,stroke:#1976d2,stroke-width:2px
+    style T2 fill:#1565c0,color:#fff,stroke:#1976d2,stroke-width:2px
+    style T3 fill:#1565c0,color:#fff,stroke:#1976d2,stroke-width:2px
+    style T4 fill:#1565c0,color:#fff,stroke:#1976d2,stroke-width:2px
+    style A1 fill:#c62828,color:#fff,stroke:#e53935,stroke-width:2px
+    style A2 fill:#c62828,color:#fff,stroke:#e53935,stroke-width:2px
+    style A3 fill:#c62828,color:#fff,stroke:#e53935,stroke-width:2px
 ```
 
 ---
