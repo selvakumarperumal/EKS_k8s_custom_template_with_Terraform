@@ -23,7 +23,7 @@ variable "cluster_name" {
 variable "kubernetes_version" {
   description = "Kubernetes version to use for the EKS cluster"
   type        = string
-  default     = "1.31"
+  default     = "1.32"
 }
 
 
@@ -44,6 +44,16 @@ variable "vpc_id" {
 variable "subnet_ids" {
   description = "List of private subnet IDs for the cluster and node groups"
   type        = list(string)
+}
+
+# Kubernetes Service CIDR — the IP range for ClusterIP Services.
+# This is SEPARATE from your VPC CIDR. Must be within 10.0.0.0/8,
+# 172.16.0.0/12, or 192.168.0.0/16, and between /12 and /24.
+# Default uses 172.20.0.0/16 to avoid conflicts with common VPC CIDRs.
+variable "service_ipv4_cidr" {
+  description = "CIDR block for Kubernetes Service ClusterIPs (set at creation, cannot change)"
+  type        = string
+  default     = "172.20.0.0/16"
 }
 
 
@@ -148,6 +158,15 @@ variable "kube_proxy_version" {
 
 variable "vpc_cni_version" {
   description = "Version of VPC CNI addon (empty = latest compatible)"
+  type        = string
+  default     = ""
+}
+
+# Optional: IAM role ARN for VPC CNI (IRSA-based least privilege).
+# If set, the VPC CNI DaemonSet uses this role instead of the node role.
+# Leave empty to use the node role (still works, but broader permissions).
+variable "vpc_cni_role_arn" {
+  description = "IAM role ARN for VPC CNI addon (empty = use node role)"
   type        = string
   default     = ""
 }

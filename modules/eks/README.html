@@ -1003,7 +1003,7 @@ The browser picked a random ephemeral port (52341). The response goes back to th
             title: "Create EKS Cluster", cat: "core", time: "~10m", hl: true,
             hcl: `resource "aws_eks_cluster" "main" {
   name     = var.cluster_name           # Cluster name visible in AWS Console
-  version  = var.kubernetes_version     # e.g., "1.31"
+  version  = var.kubernetes_version     # e.g., "1.32"
   role_arn = var.cluster_role_arn       # IAM role from the IAM module
 
   # VPC Configuration — where the cluster ENIs are placed
@@ -1013,6 +1013,18 @@ The browser picked a random ephemeral port (52341). The response goes back to th
     endpoint_private_access = var.endpoint_private_access # Always true (nodes use this)
     public_access_cidrs     = var.public_access_cidrs     # Restrict public access
     security_group_ids      = [aws_security_group.cluster.id]
+  }
+
+  # EKS Access Entries — modern replacement for aws-auth ConfigMap
+  access_config {
+    authentication_mode                         = "API_AND_CONFIG_MAP"
+    bootstrap_cluster_creator_admin_permissions = true
+  }
+
+  # Kubernetes Service CIDR — separate from VPC CIDR
+  kubernetes_network_config {
+    service_ipv4_cidr = var.service_ipv4_cidr   # e.g., "172.20.0.0/16"
+    ip_family         = "ipv4"
   }
 
   # Envelope encryption for secrets in etcd
@@ -1057,8 +1069,8 @@ customer.eni <-> customer.workers.n1: "kubelet" { style.stroke: "#f8f8f2"; style
 customer.eni <-> customer.workers.n2 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
 customer.eni <-> customer.workers.n3 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
             note: "The longest step (~10 min). AWS provisions 3 redundant API servers, etcd, controllers, and scheduler.",
-            explain: "This is the <strong>heart of the module</strong>. AWS creates the control plane in their own VPC with <strong>3 redundant API servers across 3 AZs</strong>. What you get: API server, etcd, controller manager, scheduler — all managed. AWS injects <strong>ENIs (Elastic Network Interfaces) into your private subnets</strong> so nodes communicate with the API privately via these cross-account endpoints. <strong>endpoint_public_access</strong>: When true, the API is reachable from the internet (restrict with <code>public_access_cidrs</code>). <strong>endpoint_private_access</strong>: Always true — nodes use this to talk to the API without leaving the VPC. <strong>encryption_config</strong>: Encrypts all Kubernetes Secrets at rest in etcd using our KMS key.",
-            warning: "public_access_cidrs = [\"0.0.0.0/0\"] allows API access from anywhere. In production, restrict to your office/VPN CIDR."
+            explain: "This is the <strong>heart of the module</strong>. AWS creates the control plane in their own VPC with <strong>3 redundant API servers across 3 AZs</strong>. What you get: API server, etcd, controller manager, scheduler — all managed. AWS injects <strong>ENIs (Elastic Network Interfaces) into your private subnets</strong> so nodes communicate with the API privately via these cross-account endpoints. <strong>access_config</strong>: Configures how IAM principals access the cluster. <code>API_AND_CONFIG_MAP</code> supports both the new EKS Access Entries and legacy aws-auth ConfigMap. <code>bootstrap_cluster_creator_admin_permissions = true</code> gives the cluster creator admin access (only evaluated at creation). <strong>kubernetes_network_config</strong>: Sets the Service CIDR (172.20.0.0/16) — this is separate from your VPC CIDR and is where ClusterIP Services get their IPs. <strong>encryption_config</strong>: Encrypts all Kubernetes Secrets at rest in etcd using our KMS key.",
+            warning: "public_access_cidrs = [\"0.0.0.0/0\"] allows API access from anywhere. In production, restrict to your office/VPN CIDR. bootstrap_cluster_creator_admin_permissions cannot be changed after creation."
           }
         ]
       },
@@ -1113,6 +1125,8 @@ iam.r2 -> pods.p2 { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
   addon_version               = var.vpc_cni_version != "" ? var.vpc_cni_version : null
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
+  # Optional: IRSA for least-privilege CNI permissions
+  service_account_role_arn    = var.vpc_cni_role_arn != "" ? var.vpc_cni_role_arn : null
   tags = var.tags
 }`,
             d2: `direction: right
@@ -1202,6 +1216,18 @@ dns -> svc: "Returns:\\n10.96.0.15" { style.stroke: "#50fa7b"; style.stroke-dash
     associate_public_ip_address = false   # No public IPs on nodes
     delete_on_termination       = true
     security_groups             = [aws_security_group.node.id]
+  }
+
+  # Tags for launched instances
+  tag_specifications {
+    resource_type = "instance"
+    tags = merge(var.tags, { Name = "\${var.cluster_name}-\${each.key}-node" })
+  }
+
+  # Tags for EBS volumes (prevents orphaned untagged volumes)
+  tag_specifications {
+    resource_type = "volume"
+    tags = merge(var.tags, { Name = "\${var.cluster_name}-\${each.key}-volume" })
   }
 
   lifecycle { create_before_destroy = true }
@@ -1390,7 +1416,15 @@ api -> vpc.g2.s1 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
         ['enabled_cluster_log_types',
           '<strong>What it does:</strong> Tells EKS which control plane log types to send to CloudWatch. When the variable is true, all 5 types are enabled. When false, an empty list means no logging.<br><strong>The 5 types:</strong> <code>api</code> — every API server request (GET/POST/DELETE). <code>audit</code> — who did what and when (compliance). <code>authenticator</code> — IAM-to-K8s authentication decisions. <code>controllerManager</code> — why replicas changed, why pods were evicted. <code>scheduler</code> — why a pod was placed on a specific node.<br><strong>Debugging example:</strong> If a pod keeps getting evicted, check <code>controllerManager</code> logs. If someone deleted a deployment, check <code>audit</code> logs.'],
         ['depends_on = [aws_cloudwatch_log_group]',
-          '<strong>What it does:</strong> Forces Terraform to create the CloudWatch log group BEFORE creating the EKS cluster.<br><strong>The race condition:</strong> Without <code>depends_on</code>, Terraform might create both resources in parallel. If the EKS cluster starts first and logging is enabled, EKS looks for the log group, doesn\'t find it, and < strong > auto - creates one with no retention</strong > (logs kept forever = expensive). Then Terraform creates our log group — but it\'s too late, the default one already exists.<br><strong>When logging is disabled:</strong> <code>count = 0</code> means the log group doesn\'t exist, but < code > depends_on</code > gracefully becomes a no - op — Terraform handles this correctly.']
+          '<strong>What it does:</strong> Forces Terraform to create the CloudWatch log group BEFORE creating the EKS cluster.<br><strong>The race condition:</strong> Without <code>depends_on</code>, Terraform might create both resources in parallel. If the EKS cluster starts first and logging is enabled, EKS looks for the log group, doesn\'t find it, and <strong>auto-creates one with no retention</strong> (logs kept forever = expensive). Then Terraform creates our log group — but it\'s too late, the default one already exists.<br><strong>When logging is disabled:</strong> <code>count = 0</code> means the log group doesn\'t exist, but <code>depends_on</code> gracefully becomes a no-op — Terraform handles this correctly.'],
+        ['authentication_mode = "API_AND_CONFIG_MAP"',
+          '<strong>What it does:</strong> Sets how IAM principals (users, roles) gain access rights to the Kubernetes cluster. <code>API_AND_CONFIG_MAP</code> enables both the <strong>new EKS Access Entries</strong> API and the <strong>legacy aws-auth ConfigMap</strong>.<br><strong>Why API_AND_CONFIG_MAP?</strong> This is the safest migration path. Existing clusters using aws-auth continue to work, while you can incrementally adopt the new Access Entries API. The three options: <code>API</code> = Access Entries only (cleanest, recommended for new clusters), <code>API_AND_CONFIG_MAP</code> = both methods (good for migration), <code>CONFIG_MAP</code> = legacy only (deprecated path).<br><strong>EKS Access Entries advantage:</strong> Managed via Terraform/AWS API instead of editing a Kubernetes ConfigMap. Easier to audit, version-control, and automate.'],
+        ['bootstrap_cluster_creator_admin_permissions = true',
+          '<strong>What it does:</strong> When the cluster is first created, the IAM user/role that runs <code>terraform apply</code> automatically gets <strong>Kubernetes admin permissions</strong>.<br><strong>Critical detail:</strong> This setting is <strong>ONLY evaluated during initial cluster creation</strong>. Changing it on an existing cluster has no effect and may trigger a cluster recreation (destructive). <br><strong>What happens:</strong> AWS creates an EKS Access Entry mapping the creator\'s IAM ARN to the <code>AmazonEKSClusterAdminPolicy</code>. This ensures the creator can immediately run <code>kubectl</code> commands without any additional setup.<br><strong>If set to false:</strong> The cluster is created with no admin access for anyone. You would need to use the EKS Access Entries API (or aws-auth ConfigMap) to grant access, which requires separate tooling.'],
+        ['service_ipv4_cidr = var.service_ipv4_cidr',
+          '<strong>What it does:</strong> Sets the CIDR block from which Kubernetes <strong>ClusterIP Services</strong> get their virtual IPs. Default: <code>172.20.0.0/16</code>.<br><strong>Why it matters:</strong> This is completely separate from your VPC CIDR (e.g., 10.0.0.0/16). When you create a Service like <code>mysql-svc</code>, Kubernetes assigns it an IP from this range (e.g., 172.20.0.15). These IPs are <strong>virtual</strong> — they only exist inside the cluster (kube-proxy routes traffic to the actual pod IPs).<br><strong>Why 172.20.0.0/16?</strong> Avoids conflicts with common VPC CIDRs (10.0.0.0/8 and 192.168.0.0/16). If your VPC CIDR is in the 172.x range, adjust accordingly.<br><strong>Cannot be changed:</strong> This is set at cluster creation and is immutable. Plan carefully.'],
+        ['ip_family = "ipv4"',
+          '<strong>What it does:</strong> Sets the IP address family for Kubernetes pod and service networking. Currently <code>ipv4</code> (default) or <code>ipv6</code>.<br><strong>When to use ipv6:</strong> If you need massive address space (millions of pods) or IPv6-only networking. Most clusters use <code>ipv4</code>.<br><strong>Cannot be changed:</strong> Like <code>service_ipv4_cidr</code>, this is set at creation and is immutable.']
       ],
       // ── Step 6: OIDC Provider ──
       [
@@ -1410,7 +1444,9 @@ api -> vpc.g2.s1 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
         ['resolve_conflicts_on_create = "OVERWRITE"',
           '<strong>What it does:</strong> If the VPC CNI was previously installed manually (e.g., via <code>kubectl apply</code> or Helm), this setting tells EKS to <strong>overwrite</strong> the existing installation with the managed version.<br><strong>Alternative:</strong> <code>"NONE"</code> would fail if a conflicting version exists. <code>"OVERWRITE"</code> is safer — it ensures the managed version always wins, preventing version drift between Terraform state and actual cluster state.<br><strong>When it matters:</strong> During cluster upgrades or when migrating from self-managed addons to EKS-managed addons.'],
         ['addon_version = ... null',
-          '<strong>What it does:</strong> When set to a specific version (e.g., <code>"v1.15.1-eksbuild.1"</code>), that exact version is installed. When set to <code>null</code> (empty string in our variable), EKS picks the <strong>latest compatible version</strong> for your Kubernetes version.<br><strong>Best practice:</strong> For production, pin to a specific version for reproducibility. For dev/test, <code>null</code> (latest) is fine. Version compatibility is maintained by AWS — they won\'t install a CNI version that\'s incompatible with your K8s version.']
+          '<strong>What it does:</strong> When set to a specific version (e.g., <code>"v1.15.1-eksbuild.1"</code>), that exact version is installed. When set to <code>null</code> (empty string in our variable), EKS picks the <strong>latest compatible version</strong> for your Kubernetes version.<br><strong>Best practice:</strong> For production, pin to a specific version for reproducibility. For dev/test, <code>null</code> (latest) is fine. Version compatibility is maintained by AWS — they won\'t install a CNI version that\'s incompatible with your K8s version.'],
+        ['service_account_role_arn = ...',
+          '<strong>What it does:</strong> When set, the VPC CNI DaemonSet pods use this IAM role via IRSA instead of the node role. The VPC CNI needs permissions to manage ENIs (create, attach, detach secondary IPs).<br><strong>Why this matters:</strong> Without this, CNI permissions come from the <strong>node role</strong> — meaning ALL processes on the node have ENI management permissions. With IRSA, only the <code>aws-node</code> DaemonSet pods get these permissions, following <strong>least privilege</strong>.<br><strong>How to use:</strong> Create an IAM role with <code>AmazonEKS_CNI_Policy</code> attached, a trust policy for the OIDC provider scoped to namespace <code>kube-system</code> and ServiceAccount <code>aws-node</code>, then pass its ARN here.<br><strong>If empty:</strong> The CNI uses the node role (still works, just broader permissions). Good for getting started; switch to IRSA for production.']
       ],
       // ── Step 8: kube-proxy ──
       [
@@ -1441,7 +1477,11 @@ api -> vpc.g2.s1 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
         ['associate_public_ip_address = false',
           '<strong>What it does:</strong> Prevents EC2 instances launched from this template from receiving public IP addresses.<br><strong>Why no public IPs?</strong> Worker nodes are placed in <strong>private subnets</strong>. They don\'t need(and shouldn\'t have) direct internet access. For outbound connections (pulling container images, calling AWS APIs), nodes use the NAT Gateway in the public subnet.<br><strong>Defense in depth:</strong> Even if a security group misconfiguration opens a port, without a public IP, the node is unreachable from the internet. An attacker would need to first compromise something inside the VPC.<br><strong>Exceptions:</strong> If you\'re running nodes in public subnets(not recommended for production), you\'d set this to true.'],
         ['monitoring { enabled = ... }',
-          '<strong>What it does:</strong> When <code>true</code>, enables EC2 Detailed Monitoring — CloudWatch metrics are collected every <strong>1 minute</strong> instead of the default 5 minutes.<br><strong>When you need it:</strong> Faster metrics enable the Cluster Autoscaler and Horizontal Pod Autoscaler to react more quickly to load spikes. Without it, there\'s a 5 - minute delay before autoscaling sees the increased CPU / memory.< br > <strong>Cost:</strong> ~$2.10 per instance per month.For a 3 - node cluster, that\'s ~$6.30/month.<br><strong>Alternative:</strong> Use Prometheus + node_exporter + Grafana for much more granular metrics (per-pod, per-container) at the cost of self-managing the monitoring stack.']
+          '<strong>What it does:</strong> When <code>true</code>, enables EC2 Detailed Monitoring — CloudWatch metrics are collected every <strong>1 minute</strong> instead of the default 5 minutes.<br><strong>When you need it:</strong> Faster metrics enable the Cluster Autoscaler and Horizontal Pod Autoscaler to react more quickly to load spikes. Without it, there\'s a 5-minute delay before autoscaling sees the increased CPU/memory.<br><strong>Cost:</strong> ~$2.10 per instance per month. For a 3-node cluster, that\'s ~$6.30/month.<br><strong>Alternative:</strong> Use Prometheus + node_exporter + Grafana for much more granular metrics (per-pod, per-container) at the cost of self-managing the monitoring stack.'],
+        ['tag_specifications { resource_type = "instance" }',
+          '<strong>What it does:</strong> Applies AWS tags to every EC2 instance launched from this template. Tags include the Name tag (e.g., <code>eks-cluster-general-node</code>) plus all common tags.<br><strong>Why it matters:</strong> Without tag_specifications, launched instances have NO tags — they appear as unnamed instances in the AWS Console, making it impossible to identify which cluster or node group they belong to.'],
+        ['tag_specifications { resource_type = "volume" }',
+          '<strong>What it does:</strong> Applies AWS tags to every EBS volume created by instances launched from this template. Tags include the Name tag (e.g., <code>eks-cluster-general-volume</code>) plus all common tags.<br><strong>Why this was added:</strong> Without this, EBS volumes are <strong>untagged</strong> — making it hard to track costs per cluster, identify orphaned volumes after node termination, and audit storage usage. AWS Cost Explorer can\'t attribute volume costs without tags.<br><strong>Common problem:</strong> When a node is terminated, its EBS volume is usually deleted (due to <code>delete_on_termination = true</code>). But if deletion fails or a snapshot exists, the untagged volume becomes an <strong>orphan</strong> — invisible in cost reports and costing money until manually discovered.']
       ],
       // ── Step 11: Node Groups ──
       [
@@ -1498,9 +1538,10 @@ api -> vpc.g2.s1 { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }`,
 <div class="summary" id="variables"><h2 style="color:#bd93f9;margin-bottom:1rem">📥 Input Variables</h2>
 <table class="var-table"><thead><tr><th>Variable</th><th>Type</th><th>Default</th><th>Description</th></tr></thead><tbody>
 <tr><td><code>cluster_name</code></td><td><code>string</code></td><td>—</td><td>Name of the EKS cluster</td></tr>
-<tr><td><code>kubernetes_version</code></td><td><code>string</code></td><td><code>"1.31"</code></td><td>K8s version</td></tr>
+<tr><td><code>kubernetes_version</code></td><td><code>string</code></td><td><code>"1.32"</code></td><td>K8s version</td></tr>
 <tr><td><code>vpc_id</code></td><td><code>string</code></td><td>—</td><td>VPC ID from module.vpc</td></tr>
 <tr><td><code>subnet_ids</code></td><td><code>list(string)</code></td><td>—</td><td>Private subnet IDs</td></tr>
+<tr><td><code>service_ipv4_cidr</code></td><td><code>string</code></td><td><code>"172.20.0.0/16"</code></td><td>Kubernetes Service CIDR (immutable after creation)</td></tr>
 <tr><td><code>cluster_role_arn</code></td><td><code>string</code></td><td>—</td><td>Cluster IAM role from module.iam</td></tr>
 <tr><td><code>node_role_arn</code></td><td><code>string</code></td><td>—</td><td>Node IAM role from module.iam</td></tr>
 <tr><td><code>endpoint_public_access</code></td><td><code>bool</code></td><td><code>true</code></td><td>Public API endpoint</td></tr>

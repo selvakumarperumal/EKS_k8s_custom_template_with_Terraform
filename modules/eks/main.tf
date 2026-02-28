@@ -322,7 +322,7 @@ resource "aws_security_group_rule" "node_to_node" {
 # =============================================================================
 resource "aws_eks_cluster" "main" {
   name     = var.cluster_name       # The cluster name visible in AWS Console
-  version  = var.kubernetes_version # e.g., "1.31"
+  version  = var.kubernetes_version # e.g., "1.32"
   role_arn = var.cluster_role_arn   # IAM role the EKS service assumes
 
   # ---------------------------------------------------------------------------
@@ -339,6 +339,44 @@ resource "aws_eks_cluster" "main" {
     endpoint_private_access = var.endpoint_private_access     # e.g., true
     public_access_cidrs     = var.public_access_cidrs         # e.g., ["0.0.0.0/0"]
     security_group_ids      = [aws_security_group.cluster.id] # Our custom cluster SG
+  }
+
+  # ---------------------------------------------------------------------------
+  # ACCESS CONFIGURATION (AWS Provider v6.x — EKS Access Entries)
+  # ---------------------------------------------------------------------------
+  # Controls how IAM principals (users, roles) gain access to the cluster.
+  # AWS now supports EKS Access Entries as a modern replacement for the
+  # aws-auth ConfigMap. This block configures the authentication mode.
+  #
+  # authentication_mode options:
+  #   "API"                — EKS Access Entries ONLY (new, recommended)
+  #   "API_AND_CONFIG_MAP" — Both Access Entries + aws-auth ConfigMap
+  #   "CONFIG_MAP"         — Legacy aws-auth only (deprecated path)
+  #
+  # bootstrap_cluster_creator_admin_permissions:
+  #   When true, the IAM user/role that creates the cluster automatically
+  #   gets admin access. This is ONLY evaluated during initial creation.
+  #   ⚠️ Cannot be changed after cluster creation without recreating.
+  # ---------------------------------------------------------------------------
+  access_config {
+    authentication_mode                         = "API_AND_CONFIG_MAP" # Supports both new and legacy access
+    bootstrap_cluster_creator_admin_permissions = true                 # Cluster creator gets admin access
+  }
+
+  # ---------------------------------------------------------------------------
+  # KUBERNETES NETWORK CONFIGURATION
+  # ---------------------------------------------------------------------------
+  # Configures the Kubernetes internal networking:
+  #   - service_ipv4_cidr: CIDR block for ClusterIP Services (e.g., 172.20.0.0/16)
+  #   - ip_family: ipv4 or ipv6 (can only be set at creation)
+  #
+  # This is SEPARATE from your VPC CIDR. Kubernetes Services get IPs from this
+  # range, not from your VPC subnets. The default range avoids conflicts with
+  # common VPC CIDRs (10.0.0.0/8 and 192.168.0.0/16).
+  # ---------------------------------------------------------------------------
+  kubernetes_network_config {
+    service_ipv4_cidr = var.service_ipv4_cidr # e.g., "172.20.0.0/16"
+    ip_family         = "ipv4"                # IPv4 networking
   }
 
   # ---------------------------------------------------------------------------
@@ -544,6 +582,13 @@ resource "aws_eks_addon" "vpc_cni" {
   resolve_conflicts_on_create = "OVERWRITE"
   resolve_conflicts_on_update = "OVERWRITE"
 
+  # OPTIONAL: Use IRSA for VPC CNI instead of the node role.
+  # This follows least privilege — only the CNI DaemonSet pods get
+  # ENI management permissions, not all processes on the node.
+  # To use: create an IAM role with AmazonEKS_CNI_Policy attached
+  # and a trust policy for the OIDC provider + aws-node ServiceAccount.
+  service_account_role_arn = var.vpc_cni_role_arn != "" ? var.vpc_cni_role_arn : null
+
   tags = var.tags
 }
 
@@ -666,6 +711,23 @@ resource "aws_launch_template" "node" {
       var.tags,
       {
         Name = "${var.cluster_name}-${each.key}-node" # e.g., "eks-...-general-node"
+      }
+    )
+  }
+
+  # ---------------------------------------------------------------------------
+  # VOLUME TAG SPECIFICATIONS
+  # ---------------------------------------------------------------------------
+  # Tags applied to EBS volumes created by instances launched from this template.
+  # Without this, EBS volumes are untagged — making it hard to track costs
+  # and identify orphaned volumes in your AWS account.
+  # ---------------------------------------------------------------------------
+  tag_specifications {
+    resource_type = "volume"
+    tags = merge(
+      var.tags,
+      {
+        Name = "${var.cluster_name}-${each.key}-volume" # e.g., "eks-...-general-volume"
       }
     )
   }
