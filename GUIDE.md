@@ -383,6 +383,33 @@ terraform output configure_kubectl
 
 ## 7. Day 2 Operations
 
+### How Nodes Are Distributed Across 3 AZs
+
+Your cluster uses **3 private subnets** — one per Availability Zone. EKS managed node groups create an Auto Scaling Group (ASG) spanning all 3 AZs and use the **AZ-balanced spread** strategy to distribute nodes evenly:
+
+```
+┌─── us-east-1a ──────┐  ┌─── us-east-1b ──────┐  ┌─── us-east-1c ──────┐
+│  10.0.1.0/24         │  │  10.0.2.0/24         │  │  10.0.3.0/24         │
+│  ┌──────────────┐    │  │  ┌──────────────┐    │  │  ┌──────────────┐    │
+│  │   Node 1     │    │  │  │   Node 2     │    │  │  │   Node 3     │    │
+│  └──────────────┘    │  │  └──────────────┘    │  │  └──────────────┘    │
+└──────────────────────┘  └──────────────────────┘  └──────────────────────┘
+```
+
+**Distribution examples:**
+
+| `desired_size` | AZ-A | AZ-B | AZ-C | Notes |
+|---|---|---|---|---|
+| 3 | 1 | 1 | 1 | Perfect balance |
+| 2 | 1 | 1 | 0 | Best-effort (2 of 3 AZs) |
+| 4 | 2 | 1 | 1 | Extra node in a random AZ |
+| 6 | 2 | 2 | 2 | Perfect balance |
+
+**AZ failure recovery:**
+If an AZ goes down, surviving nodes in other AZs continue running. The ASG automatically launches replacement nodes in healthy AZs, and Kubernetes reschedules lost pods to surviving nodes.
+
+> **Note:** This is why 3 AZs matter — your cluster survives any single AZ failure with zero manual intervention.
+
 ### Scale Node Groups
 
 ```bash
@@ -637,6 +664,54 @@ export TF_VAR_db_password="S3cur3P@ss!"
 # ... (all other TF_VAR_* from above)
 terraform apply
 ```
+
+#### Setting Secrets via GitHub Actions (CI/CD)
+
+If you provision infrastructure using the GitHub Actions workflow (`.github/workflows/terraform-eks.yml`), you **cannot** use `export` — instead, store credentials as **GitHub Secrets** and the workflow maps them to `TF_VAR_*` automatically.
+
+**Step 1: Add Secrets to GitHub**
+
+1. Go to your GitHub repository
+2. Navigate to **Settings → Secrets and variables → Actions**
+3. Click **New repository secret** for each value:
+
+| GitHub Secret Name | Example Value | Required When |
+|-------------------|---------------|---------------|
+| `AWS_ACCESS_KEY_ID` | `AKIA...` | Always |
+| `AWS_SECRET_ACCESS_KEY` | `wJalr...` | Always |
+| `TF_VAR_DB_USERNAME` | `admin` | `create_db_secret = true` |
+| `TF_VAR_DB_PASSWORD` | `YourStr0ng!Pass` | `create_db_secret = true` |
+| `TF_VAR_DB_HOST` | `mydb.xxx.us-east-1.rds.amazonaws.com` | `create_db_secret = true` |
+| `TF_VAR_DB_PORT` | `5432` | `create_db_secret = true` |
+| `TF_VAR_DB_NAME` | `myapp` | `create_db_secret = true` |
+| `TF_VAR_DB_ENGINE` | `postgres` | `create_db_secret = true` |
+| `TF_VAR_API_KEY` | `sk-live-abc123` | `create_api_secret = true` |
+| `TF_VAR_API_SECRET` | `whsec_xyz789` | `create_api_secret = true` |
+| `TF_VAR_APP_CONFIG` | `{"LOG_LEVEL":"info","APP_ENV":"prod"}` | `create_app_config_secret = true` |
+
+**Step 2: How It Works**
+
+The workflow automatically maps GitHub Secrets → `TF_VAR_*` env vars:
+
+```yaml
+# In terraform-eks.yml (already configured for you):
+- name: Terraform Apply
+  run: terraform apply -var-file="environments/${{ github.event.inputs.environment }}.tfvars" -auto-approve
+  env:
+    TF_VAR_db_username: ${{ secrets.TF_VAR_DB_USERNAME }}   # GitHub Secret → TF_VAR
+    TF_VAR_db_password: ${{ secrets.TF_VAR_DB_PASSWORD }}
+    TF_VAR_api_key: ${{ secrets.TF_VAR_API_KEY }}
+    # ... (all secrets are mapped automatically)
+```
+
+**Step 3: Run the Workflow**
+
+1. Go to **Actions** tab → **Deploy EKS Cluster**
+2. Click **Run workflow**
+3. Choose environment (`dev` / `prod`) and action (`plan` / `apply`)
+4. The workflow reads your GitHub Secrets and passes them as `TF_VAR_*` to Terraform
+
+> **Note:** You only need to add the secrets you're actually using. If `create_db_secret = false` in your tfvars, you don't need the `TF_VAR_DB_*` secrets — they'll be ignored.
 
 ### 8.2 Verify Secrets Were Created
 

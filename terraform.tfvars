@@ -96,7 +96,7 @@ enable_aws_config = true
 # Uncomment and fill in values to create secrets in AWS Secrets Manager.
 # These secrets can be consumed by pods using External Secrets Operator.
 
-# enable_db_secret = true
+# create_db_secret = true
 # db_username      = "admin"
 # db_password      = "change-me-in-production"
 # db_engine        = "postgres"
@@ -104,11 +104,11 @@ enable_aws_config = true
 # db_port          = 5432
 # db_name          = "myapp"
 
-# enable_api_secret = true
+# create_api_secret = true
 # api_key           = "your-api-key"
 # api_secret        = "your-api-secret"
 
-# enable_app_config_secret = true
+# create_app_config_secret = true
 # app_config = {
 #   LOG_LEVEL    = "info"
 #   FEATURE_FLAG = "true"

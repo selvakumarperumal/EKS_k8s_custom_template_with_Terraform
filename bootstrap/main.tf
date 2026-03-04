@@ -12,7 +12,7 @@ provider "aws" {
   region = var.aws_region
   default_tags {
     tags = {
-      Project   = "CRUD-App"
+      Project   = "EKS-Custom-Template"
       Purpose   = "Terraform State Management"
       ManagedBy = "Terraform-Bootstrap"
     }

@@ -307,9 +307,9 @@ module "secrets_manager" {
   name_prefix = var.cluster_name # Secret names will start with the cluster name
 
   # Toggle which secrets to create (default: all disabled)
-  create_db_secret         = var.enable_db_secret
-  create_api_secret        = var.enable_api_secret
-  create_app_config_secret = var.enable_app_config_secret
+  create_db_secret         = var.create_db_secret
+  create_api_secret        = var.create_api_secret
+  create_app_config_secret = var.create_app_config_secret
 
   # Database credentials — only used if create_db_secret = true
   db_username = var.db_username # e.g., "admin"

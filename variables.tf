@@ -435,21 +435,21 @@ variable "enable_aws_config" {
 # =============================================================================
 
 # --- Database Secret ---
-variable "enable_db_secret" {
+variable "create_db_secret" {
   description = "Create a Secrets Manager secret for database credentials"
   type        = bool
   default     = false
 }
 
 variable "db_username" {
-  description = "Database username (only used when enable_db_secret = true)"
+  description = "Database username (only used when create_db_secret = true)"
   type        = string
   default     = ""
   sensitive   = true # Redacted from terraform plan/apply output
 }
 
 variable "db_password" {
-  description = "Database password (only used when enable_db_secret = true)"
+  description = "Database password (only used when create_db_secret = true)"
   type        = string
   default     = ""
   sensitive   = true # Redacted from terraform plan/apply output
@@ -480,28 +480,28 @@ variable "db_name" {
 }
 
 # --- API Secret ---
-variable "enable_api_secret" {
+variable "create_api_secret" {
   description = "Create a Secrets Manager secret for API keys"
   type        = bool
   default     = false
 }
 
 variable "api_key" {
-  description = "API key value (only used when enable_api_secret = true)"
+  description = "API key value (only used when create_api_secret = true)"
   type        = string
   default     = ""
   sensitive   = true
 }
 
 variable "api_secret" {
-  description = "API secret value (only used when enable_api_secret = true)"
+  description = "API secret value (only used when create_api_secret = true)"
   type        = string
   default     = ""
   sensitive   = true
 }
 
 # --- Application Config Secret ---
-variable "enable_app_config_secret" {
+variable "create_app_config_secret" {
   description = "Create a Secrets Manager secret for application configuration"
   type        = bool
   default     = false

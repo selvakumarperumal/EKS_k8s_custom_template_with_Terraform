@@ -322,7 +322,7 @@ resource "aws_security_group_rule" "node_to_node" {
 # =============================================================================
 resource "aws_eks_cluster" "main" {
   name     = var.cluster_name       # The cluster name visible in AWS Console
-  version  = var.kubernetes_version # e.g., "1.32"
+  version  = var.kubernetes_version # e.g., "1.31"
   role_arn = var.cluster_role_arn   # IAM role the EKS service assumes
 
   # ---------------------------------------------------------------------------
