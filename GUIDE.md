@@ -13,9 +13,10 @@
 5. [Access the Cluster from Your Local Machine](#5-access-the-cluster-from-your-local-machine)
 6. [Post-Deployment Verification](#6-post-deployment-verification)
 7. [Day 2 Operations](#7-day-2-operations)
-8. [Cleanup / Destroy](#8-cleanup--destroy)
-9. [Troubleshooting](#9-troubleshooting)
-10. [Cost Summary](#10-cost-summary)
+8. [AWS Secrets Manager — Managing Secrets](#8-aws-secrets-manager--managing-secrets)
+9. [Cleanup / Destroy](#9-cleanup--destroy)
+10. [Troubleshooting](#10-troubleshooting)
+11. [Cost Summary](#11-cost-summary)
 
 ---
 
@@ -489,7 +490,349 @@ helm install aws-load-balancer-controller eks/aws-load-balancer-controller \
 
 ---
 
-## 8. Cleanup / Destroy
+## 8. AWS Secrets Manager — Managing Secrets
+
+This template includes a `secrets-manager` module that stores sensitive data (DB credentials, API keys, app config) encrypted with a dedicated KMS key. All secrets are **disabled by default** — you opt-in to each one.
+
+### 8.1 Enable Secrets via Terraform
+
+Add these variables to your `terraform.tfvars` or environment tfvars file:
+
+#### Database Credentials
+
+```hcl
+# terraform.tfvars or environments/prod.tfvars
+create_db_secret = true
+```
+
+Then pass the actual credentials securely via **environment variables** (never commit passwords to files):
+
+```bash
+# Set credentials as env vars (they won't appear in terraform plan output)
+export TF_VAR_db_username="admin"
+export TF_VAR_db_password="YourStr0ng!Password"
+export TF_VAR_db_host="mydb.cluster-xxx.us-east-1.rds.amazonaws.com"
+export TF_VAR_db_port="5432"
+export TF_VAR_db_name="myapp"
+export TF_VAR_db_engine="postgres"   # or "mysql", "aurora-postgresql"
+
+# Apply — credentials are marked sensitive, hidden from output
+terraform apply -var-file="environments/prod.tfvars"
+```
+
+**What gets created:**
+- Secret: `eks-secure-cluster-db-credentials` (JSON: `{username, password, engine, host, port, dbname}`)
+- KMS key: `alias/eks-secure-cluster-secrets` (dedicated encryption key)
+- IAM policy: `eks-secure-cluster-read-secrets-*` (read-only access for pods)
+
+#### API Keys
+
+```hcl
+create_api_secret = true
+```
+
+```bash
+export TF_VAR_api_key="sk-live-abc123..."
+export TF_VAR_api_secret="whsec_xyz789..."
+terraform apply -var-file="environments/prod.tfvars"
+```
+
+Creates: `eks-secure-cluster-api-keys` secret with `{api_key, api_secret}`.
+
+#### Application Configuration
+
+```hcl
+create_app_config_secret = true
+```
+
+```bash
+# Pass as a JSON map
+export TF_VAR_app_config='{"LOG_LEVEL":"info","FEATURE_FLAG_NEW_UI":"true","APP_ENV":"production","REDIS_URL":"redis://cache:6379"}'
+terraform apply -var-file="environments/prod.tfvars"
+```
+
+Creates: `eks-secure-cluster-app-config` secret with your key-value pairs as JSON.
+
+#### Enable All Three at Once
+
+```hcl
+# In terraform.tfvars
+create_db_secret         = true
+create_api_secret        = true
+create_app_config_secret = true
+```
+
+```bash
+# Set ALL env vars, then apply
+export TF_VAR_db_username="admin"
+export TF_VAR_db_password="S3cur3P@ss!"
+# ... (all other TF_VAR_* from above)
+terraform apply
+```
+
+### 8.2 Verify Secrets Were Created
+
+```bash
+# List secrets
+aws secretsmanager list-secrets --query 'SecretList[?starts_with(Name, `eks-secure-cluster`)].Name'
+
+# Read a secret value (careful — this outputs the actual secret!)
+aws secretsmanager get-secret-value \
+  --secret-id eks-secure-cluster-db-credentials \
+  --query 'SecretString' --output text | jq .
+
+# Check Terraform outputs
+terraform output secrets_manager_db_secret_arn
+terraform output secrets_manager_api_secret_arn
+terraform output secrets_manager_read_policy_arn
+```
+
+### 8.3 How Pods Access Secrets (3 Methods)
+
+All methods use **IRSA** (IAM Roles for Service Accounts) — pods get temporary AWS credentials via their ServiceAccount, not long-lived keys.
+
+#### Method 1: External Secrets Operator (Recommended)
+
+Automatically syncs AWS secrets → Kubernetes Secrets. Best for most use cases.
+
+```bash
+# Install External Secrets Operator
+helm repo add external-secrets https://charts.external-secrets.io
+helm repo update
+helm install external-secrets external-secrets/external-secrets \
+  -n external-secrets --create-namespace
+```
+
+Create an IRSA-enabled ServiceAccount and ExternalSecret:
+
+```yaml
+# 1. ServiceAccount with IRSA annotation
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: secret-reader
+  namespace: myapp
+  annotations:
+    # Replace with the IRSA role ARN from: terraform output secrets_manager_read_policy_arn
+    eks.amazonaws.com/role-arn: "arn:aws:iam::<account-id>:role/<irsa-role>"
+
+---
+# 2. SecretStore — tells ESO how to connect to AWS
+apiVersion: external-secrets.io/v1beta1
+kind: SecretStore
+metadata:
+  name: aws-secrets
+  namespace: myapp
+spec:
+  provider:
+    aws:
+      service: SecretsManager
+      region: us-east-1
+      auth:
+        jwt:
+          serviceAccountRef:
+            name: secret-reader
+
+---
+# 3. ExternalSecret — syncs AWS secret → K8s Secret
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: db-credentials
+  namespace: myapp
+spec:
+  refreshInterval: 1h          # Poll every hour for changes
+  secretStoreRef:
+    name: aws-secrets
+  target:
+    name: db-credentials       # K8s Secret name created automatically
+  data:
+    - secretKey: DB_USERNAME   # K8s Secret key
+      remoteRef:
+        key: eks-secure-cluster-db-credentials  # AWS Secret name
+        property: username                      # JSON field to extract
+    - secretKey: DB_PASSWORD
+      remoteRef:
+        key: eks-secure-cluster-db-credentials
+        property: password
+    - secretKey: DB_HOST
+      remoteRef:
+        key: eks-secure-cluster-db-credentials
+        property: host
+```
+
+Use in your Deployment:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp
+  namespace: myapp
+spec:
+  template:
+    spec:
+      serviceAccountName: secret-reader
+      containers:
+      - name: myapp
+        image: myapp:latest
+        envFrom:
+        - secretRef:
+            name: db-credentials   # Auto-created by ExternalSecret
+```
+
+#### Method 2: CSI Secrets Store Driver
+
+Mounts secrets as files inside the pod. Good for apps that read config from files.
+
+```bash
+# Install CSI driver
+helm repo add secrets-store-csi-driver https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts
+helm install csi-secrets-store secrets-store-csi-driver/secrets-store-csi-driver \
+  -n kube-system --set syncSecret.enabled=true
+
+# Install AWS provider
+kubectl apply -f https://raw.githubusercontent.com/aws/secrets-store-csi-driver-provider-aws/main/deployment/aws-provider-installer.yaml
+```
+
+```yaml
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: aws-db-secrets
+  namespace: myapp
+spec:
+  provider: aws
+  parameters:
+    objects: |
+      - objectName: "eks-secure-cluster-db-credentials"
+        objectType: "secretsmanager"
+        jmesPath:
+          - path: username
+            objectAlias: db-username
+          - path: password
+            objectAlias: db-password
+---
+# In your Deployment pod spec:
+# spec:
+#   volumes:
+#   - name: secrets
+#     csi:
+#       driver: secrets-store.csi.k8s.io
+#       readOnly: true
+#       volumeAttributes:
+#         secretProviderClass: aws-db-secrets
+#   containers:
+#   - name: app
+#     volumeMounts:
+#     - name: secrets
+#       mountPath: /mnt/secrets
+#       readOnly: true
+# Secret files appear at: /mnt/secrets/db-username, /mnt/secrets/db-password
+```
+
+#### Method 3: AWS SDK in Application Code
+
+Directly call Secrets Manager API from your app. Best for dynamic secret rotation handling.
+
+```python
+# Python example using boto3
+import boto3, json
+
+def get_db_credentials():
+    client = boto3.client('secretsmanager', region_name='us-east-1')
+    response = client.get_secret_value(SecretId='eks-secure-cluster-db-credentials')
+    return json.loads(response['SecretString'])
+
+# Usage:
+creds = get_db_credentials()
+db_url = f"postgresql://{creds['username']}:{creds['password']}@{creds['host']}:{creds['port']}/{creds['dbname']}"
+```
+
+```javascript
+// Node.js example
+const { SecretsManagerClient, GetSecretValueCommand } = require("@aws-sdk/client-secrets-manager");
+
+async function getApiKeys() {
+  const client = new SecretsManagerClient({ region: "us-east-1" });
+  const response = await client.send(
+    new GetSecretValueCommand({ SecretId: "eks-secure-cluster-api-keys" })
+  );
+  return JSON.parse(response.SecretString);
+}
+
+// Usage:
+const keys = await getApiKeys();
+console.log(keys.api_key, keys.api_secret);
+```
+
+> **Important:** For Methods 1 & 2, pods need an IRSA-annotated ServiceAccount. For Method 3, the pod's ServiceAccount also needs IRSA so boto3/SDK gets credentials automatically.
+
+### 8.4 Create an IRSA Role for Secret Access
+
+If you need to create an IRSA role manually (the module outputs the policy ARN):
+
+```bash
+# Get the read-secrets policy ARN
+POLICY_ARN=$(terraform output -raw secrets_manager_read_policy_arn)
+
+# Get OIDC provider
+OIDC_PROVIDER=$(terraform output -raw oidc_provider)
+
+# Create trust policy
+cat > /tmp/trust-policy.json <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "Federated": "arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):oidc-provider/${OIDC_PROVIDER}" },
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": {
+        "${OIDC_PROVIDER}:sub": "system:serviceaccount:myapp:secret-reader"
+      }
+    }
+  }]
+}
+EOF
+
+# Create role and attach policy
+aws iam create-role --role-name eks-secret-reader --assume-role-policy-document file:///tmp/trust-policy.json
+aws iam attach-role-policy --role-name eks-secret-reader --policy-arn "$POLICY_ARN"
+
+# Annotate your K8s ServiceAccount
+kubectl annotate sa secret-reader -n myapp \
+  eks.amazonaws.com/role-arn=arn:aws:iam::$(aws sts get-caller-identity --query Account --output text):role/eks-secret-reader
+```
+
+### 8.5 Rotate Secrets
+
+```bash
+# Update a secret value via CLI
+aws secretsmanager put-secret-value \
+  --secret-id eks-secure-cluster-db-credentials \
+  --secret-string '{"username":"admin","password":"NewP@ssw0rd!","engine":"postgres","host":"mydb.xxx.rds.amazonaws.com","port":"5432","dbname":"myapp"}'
+
+# Or update via Terraform (change the env var and re-apply)
+export TF_VAR_db_password="NewP@ssw0rd!"
+terraform apply
+```
+
+> **Note:** After rotation, External Secrets Operator picks up changes at the next `refreshInterval`. CSI driver requires a pod restart. SDK-based apps pick up changes immediately on next API call.
+
+### 8.6 Secrets Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `AccessDeniedException` from pod | Verify ServiceAccount has correct IRSA annotation; check IAM policy includes the secret ARN |
+| ExternalSecret shows `SecretSyncedError` | Check SecretStore auth; verify OIDC trust policy allows the ServiceAccount |
+| Secret value is empty `{}` | Ensure you passed `TF_VAR_*` env vars before `terraform apply` |
+| KMS decrypt error | The read-secrets IAM policy already includes `kms:Decrypt`; verify the policy is attached to the IRSA role |
+| Secret not found | Check the secret name: `aws secretsmanager list-secrets --query 'SecretList[].Name'` |
+
+---
+
+## 9. Cleanup / Destroy
 
 > ⚠️ **WARNING:** This permanently deletes ALL cluster resources, including running workloads.
 
@@ -534,7 +877,7 @@ kubectl config delete-cluster arn:aws:eks:us-east-1:<account-id>:cluster/eks-sec
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 ### Authentication Issues
 
@@ -572,7 +915,7 @@ kubectl config delete-cluster arn:aws:eks:us-east-1:<account-id>:cluster/eks-sec
 
 ---
 
-## 10. Cost Summary
+## 11. Cost Summary
 
 ### Development Environment (~$120/mo)
 
@@ -596,7 +939,8 @@ kubectl config delete-cluster arn:aws:eks:us-east-1:<account-id>:cluster/eks-sec
 | VPC Flow Logs | ~$5 |
 | GuardDuty | ~$15 |
 | AWS Config | ~$5 |
-| **Total** | **~$320/mo** |
+| Secrets Manager (3 secrets) | ~$1.50 |
+| **Total** | **~$322/mo** |
 
 > 💡 Use the [AWS Pricing Calculator](https://calculator.aws/) for precise estimates based on your region and usage.
 
@@ -614,6 +958,10 @@ terraform apply -var-file="environments/dev.tfvars"     # Deploy (dev)
 aws eks update-kubeconfig --region us-east-1 --name eks-secure-cluster
 kubectl get nodes
 kubectl get pods -A
+
+# === SECRETS ===
+aws secretsmanager list-secrets --query 'SecretList[].Name'
+aws secretsmanager get-secret-value --secret-id eks-secure-cluster-db-credentials
 
 # === MONITORING ===
 kubectl top nodes                                       # Node resource usage
