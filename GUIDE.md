@@ -525,6 +525,74 @@ terraform apply -var-file="environments/prod.tfvars"
 - KMS key: `alias/eks-secure-cluster-secrets` (dedicated encryption key)
 - IAM policy: `eks-secure-cluster-read-secrets-*` (read-only access for pods)
 
+#### Where Do These Database Values Come From?
+
+The Secrets Manager module **stores** credentials — it does NOT create the database itself. Here's where each value comes from:
+
+| Variable | Where It Comes From |
+|----------|-------------------|
+| `db_username` | You choose it when creating the database |
+| `db_password` | You choose it when creating the database |
+| `db_host` | The RDS/Aurora **endpoint** (shown in AWS Console after creation) |
+| `db_port` | `5432` (PostgreSQL) or `3306` (MySQL) — standard ports |
+| `db_name` | The database name you created |
+| `db_engine` | `postgres`, `mysql`, `aurora-postgresql`, etc. |
+
+**Option A: You already have a database** — Copy the endpoint from AWS Console → RDS → Your DB → Endpoint, and use the master credentials you set during creation.
+
+**Option B: Create via AWS Console** — Go to AWS Console → RDS → Create Database → Choose PostgreSQL/MySQL → Set master username & password → **Place it in the same VPC as your EKS cluster** → After creation, copy the Endpoint.
+
+**Option C: Create via Terraform** — Add an RDS resource to your `main.tf`:
+
+```hcl
+# Add to main.tf — Creates a PostgreSQL database in the same VPC as EKS
+resource "aws_db_subnet_group" "main" {
+  name       = "${var.cluster_name}-db-subnet"
+  subnet_ids = module.vpc.private_subnet_ids   # Same private subnets as EKS nodes
+  tags       = { Name = "${var.cluster_name}-db-subnet" }
+}
+
+resource "aws_security_group" "rds" {
+  name_prefix = "${var.cluster_name}-rds-"
+  vpc_id      = module.vpc.vpc_id
+
+  # Allow PostgreSQL traffic ONLY from EKS worker nodes
+  ingress {
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [module.eks.cluster_security_group_id]
+  }
+
+  tags = { Name = "${var.cluster_name}-rds-sg" }
+}
+
+resource "aws_db_instance" "main" {
+  identifier        = "${var.cluster_name}-db"
+  engine            = "postgres"
+  engine_version    = "16.4"
+  instance_class    = "db.t3.micro"    # ~$15/mo (smallest, good for dev)
+  allocated_storage = 20               # 20 GB gp3
+
+  db_name  = "myapp"
+  username = var.db_username           # From TF_VAR_db_username
+  password = var.db_password           # From TF_VAR_db_password
+
+  db_subnet_group_name   = aws_db_subnet_group.main.name
+  vpc_security_group_ids = [aws_security_group.rds.id]
+  skip_final_snapshot    = true        # Set false for production!
+
+  tags = { Name = "${var.cluster_name}-db" }
+}
+```
+
+With Option C, the host is auto-generated — use `aws_db_instance.main.endpoint` as output and you only need to set:
+```bash
+export TF_VAR_db_username="admin"
+export TF_VAR_db_password="YourStr0ng!Password"
+terraform apply
+```
+
 #### API Keys
 
 ```hcl
