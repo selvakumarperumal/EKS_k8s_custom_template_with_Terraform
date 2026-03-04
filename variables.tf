@@ -182,6 +182,85 @@ variable "public_subnets" {
   default     = ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
 }
 
+# -----------------------------------------------------------------------------
+# NAT GATEWAY
+# -----------------------------------------------------------------------------
+# Controls whether NAT Gateway is created and whether to use a single
+# shared NAT (cost saving) or one per AZ (high availability).
+# -----------------------------------------------------------------------------
+variable "enable_nat_gateway" {
+  description = "Enable NAT Gateway for private subnet outbound internet access"
+  type        = bool
+  default     = true
+}
+
+variable "single_nat_gateway" {
+  description = "Use a single NAT Gateway (true = ~$33/mo) or one per AZ (false = ~$99/mo for HA)"
+  type        = bool
+  default     = true # Cost saving for dev; set false for production HA
+}
+
+# -----------------------------------------------------------------------------
+# NODE GROUPS
+# -----------------------------------------------------------------------------
+# Map of EKS node group configurations. Override in environment tfvars
+# to customize instance types, scaling, and capacity type per environment.
+# -----------------------------------------------------------------------------
+variable "node_groups" {
+  description = "Map of EKS node group configurations"
+  type = map(object({
+    instance_types = list(string)
+    desired_size   = number
+    min_size       = number
+    max_size       = number
+    capacity_type  = optional(string)
+    disk_size      = optional(number)
+    labels         = optional(map(string))
+    taints = optional(list(object({
+      key    = string
+      value  = string
+      effect = string
+    })))
+    tags                = optional(map(string))
+    additional_userdata = optional(string)
+  }))
+  default = {
+    general = {
+      instance_types = ["t3.medium"]
+      desired_size   = 2
+      min_size       = 2
+      max_size       = 4
+      capacity_type  = "ON_DEMAND"
+      disk_size      = 20
+      labels = {
+        role = "general"
+      }
+      tags = {
+        NodeGroup = "general"
+      }
+    }
+    spot = {
+      instance_types = ["t3.medium", "t3a.medium"]
+      desired_size   = 1
+      min_size       = 1
+      max_size       = 3
+      capacity_type  = "SPOT"
+      disk_size      = 20
+      labels = {
+        role = "spot"
+      }
+      taints = [{
+        key    = "spot"
+        value  = "true"
+        effect = "NO_SCHEDULE"
+      }]
+      tags = {
+        NodeGroup = "spot"
+      }
+    }
+  }
+}
+
 
 # =============================================================================
 # EKS SECURITY CONFIGURATION

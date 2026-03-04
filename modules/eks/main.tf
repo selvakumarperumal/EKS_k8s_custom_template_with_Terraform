@@ -614,8 +614,10 @@ resource "aws_eks_addon" "vpc_cni" {
 resource "aws_launch_template" "node" {
   for_each = var.node_groups # One template per node group
 
-  name_prefix = "${var.cluster_name}-${each.key}-" # e.g., "eks-...-general-abc123"
-  description = "Launch template for ${var.cluster_name} ${each.key} node group"
+  name_prefix            = "${var.cluster_name}-${each.key}-" # e.g., "eks-...-general-abc123"
+  description            = "Launch template for ${var.cluster_name} ${each.key} node group"
+  update_default_version = true # Auto-promote new versions as default (avoids stale template versions)
+  ebs_optimized          = true # Dedicated EBS bandwidth — free on modern instance types
 
   # ---------------------------------------------------------------------------
   # BLOCK DEVICE MAPPING (EBS Volume)
@@ -697,6 +699,18 @@ resource "aws_launch_template" "node" {
     associate_public_ip_address = false                        # SECURITY: No public IPs on nodes
     delete_on_termination       = true                         # Clean up ENIs on termination
     security_groups             = [aws_security_group.node.id] # Our node SG
+    network_card_index          = 0                            # Primary network card
+  }
+
+  # ---------------------------------------------------------------------------
+  # PRIVATE DNS NAME OPTIONS
+  # ---------------------------------------------------------------------------
+  # Controls how instance hostnames are generated. "resource-name" uses the
+  # instance ID (e.g., i-0abc123def456) instead of the private IP, giving
+  # predictable DNS names that don't change if the instance gets a new IP.
+  # ---------------------------------------------------------------------------
+  private_dns_name_options {
+    hostname_type = "resource-name" # Predictable hostname based on instance ID
   }
 
   # ---------------------------------------------------------------------------

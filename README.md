@@ -256,7 +256,7 @@ aws configure
 # Or use environment variables:
 # export AWS_ACCESS_KEY_ID="..."
 # export AWS_SECRET_ACCESS_KEY="..."
-# export AWS_DEFAULT_REGION="ap-south-1"
+# export AWS_DEFAULT_REGION="us-east-1"
 
 # 4. Initialize Terraform
 terraform init
@@ -268,7 +268,7 @@ terraform plan -var-file="environments/dev.tfvars"
 terraform apply -var-file="environments/dev.tfvars"
 
 # 7. Configure kubectl
-aws eks update-kubeconfig --region ap-south-1 --name eks-dev-cluster
+aws eks update-kubeconfig --region us-east-1 --name eks-dev-cluster
 
 # 8. Verify cluster access
 kubectl get nodes
@@ -375,6 +375,7 @@ public_access_cidrs  = ["YOUR_VPN_CIDR/32"]  # Restrict to VPN
 - **[Architecture Deep Dive](docs/ARCHITECTURE.md)** — Detailed component diagrams and relationships
 - **[Security Controls](docs/SECURITY.md)** — Explanation of every security measure
 - **[Line-by-Line Guide](docs/LINE_BY_LINE.md)** — Code explanation for learning
+- **[Deployment & Operations Guide](GUIDE.md)** — Complete step-by-step deployment, cluster access, and troubleshooting
 
 ---
 

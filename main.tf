@@ -120,8 +120,8 @@ module "vpc" {
   private_subnets = var.private_subnets # ["10.0.1.0/24", "10.0.2.0/24", "10.0.3.0/24"]
   public_subnets  = var.public_subnets  # ["10.0.101.0/24", "10.0.102.0/24", "10.0.103.0/24"]
 
-  enable_nat_gateway = true # Required for private subnets to reach internet
-  single_nat_gateway = true # Use ONE NAT instead of one-per-AZ (cost saving for dev)
+  enable_nat_gateway = var.enable_nat_gateway # Required for private subnets to reach internet
+  single_nat_gateway = var.single_nat_gateway # true = cost saving, false = HA (one per AZ)
   # For production: set single_nat_gateway = false for HA NAT (one per AZ)
 
   # VPC Flow Logs — OPTIONAL (~$5/mo). Alternative: Cilium Hubble, Calico
@@ -252,87 +252,18 @@ module "eks" {
   # 1. "general" — ON_DEMAND instances for critical workloads
   # 2. "spot"    — SPOT instances for cost-optimized, fault-tolerant workloads
   # ---------------------------------------------------------------------------
-  node_groups = {
-
-    # -------------------------------------------------------------------------
-    # GENERAL NODE GROUP (ON-DEMAND)
-    # -------------------------------------------------------------------------
-    # These are reliable, always-available instances. Use for:
-    #   - Production workloads
-    #   - Stateful applications (databases, caches)
-    #   - Critical system components
-    #
-    # ON_DEMAND instances are never interrupted by AWS.
-    # -------------------------------------------------------------------------
-    general = {
-      instance_types = ["t3.medium"] # 2 vCPU, 4 GiB RAM — good for most workloads
-      desired_size   = 2             # Start with 2 nodes
-      min_size       = 2             # Never scale below 2 (HA)
-      max_size       = 4             # Allow scaling up to 4 under load
-      capacity_type  = "ON_DEMAND"   # Guaranteed availability
-      disk_size      = 20            # 20 GiB EBS volume per node
-
-      # Labels are key-value pairs attached to nodes in Kubernetes.
-      # Pods can use nodeSelector or nodeAffinity to target specific nodes.
-      labels = {
-        role = "general" # Use: nodeSelector: { role: general }
-      }
-
-      tags = {
-        NodeGroup = "general"
-      }
-    }
-
-    # -------------------------------------------------------------------------
-    # SPOT NODE GROUP (COST-OPTIMIZED)
-    # -------------------------------------------------------------------------
-    # SPOT instances are unused EC2 capacity at up to 90% discount.
-    # AWS can reclaim them with 2 minutes notice (interruption).
-    #
-    # Use for:
-    #   - Batch processing, CI/CD runners
-    #   - Stateless, fault-tolerant workloads
-    #   - Development/testing environments
-    #
-    # IMPORTANT: We set a taint ("spot=true:NoSchedule") so that pods are
-    # NOT scheduled on spot nodes by default. Only pods that explicitly
-    # tolerate this taint will be placed here.
-    #
-    # Multiple instance types increase the chances of getting capacity.
-    # -------------------------------------------------------------------------
-    spot = {
-      instance_types = ["t3.medium", "t3a.medium"] # Multiple types for availability
-      desired_size   = 1                           # Start with 1 spot node
-      min_size       = 1                           # Minimum 1 spot node
-      max_size       = 3                           # Scale up to 3 under load
-      capacity_type  = "SPOT"                      # Use spot pricing (up to 90% discount)
-      disk_size      = 20                          # 20 GiB EBS volume
-
-      labels = {
-        role = "spot" # Identifies this as a spot node
-      }
-
-      # Taints prevent pods from being scheduled on this node unless they
-      # have a matching toleration. This prevents critical pods from
-      # running on interruptible spot instances.
-      #
-      # To schedule a pod on spot nodes, add this toleration:
-      #   tolerations:
-      #   - key: "spot"
-      #     operator: "Equal"
-      #     value: "true"
-      #     effect: "NoSchedule"
-      taints = [{
-        key    = "spot"        # Taint key
-        value  = "true"        # Taint value
-        effect = "NO_SCHEDULE" # Pods without toleration won't be scheduled
-      }]
-
-      tags = {
-        NodeGroup = "spot"
-      }
-    }
-  }
+  # ---------------------------------------------------------------------------
+  # NODE GROUP CONFIGURATION
+  # ---------------------------------------------------------------------------
+  # Defined as a root variable (variables.tf) with sensible defaults.
+  # Override per environment using -var-file="environments/dev.tfvars"
+  # or -var-file="environments/prod.tfvars".
+  #
+  # Default includes:
+  # 1. "general" — ON_DEMAND instances for reliable workloads
+  # 2. "spot"    — SPOT instances for cost-optimized, fault-tolerant workloads
+  # ---------------------------------------------------------------------------
+  node_groups = var.node_groups
 
   tags = {
     Environment = var.environment

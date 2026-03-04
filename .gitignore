@@ -16,6 +16,11 @@ crash.*.log
 *.tfvars
 *.tfvars.json
 
+# Exception: Keep base terraform.tfvars and environment configs (they contain
+# no secrets — only infrastructure configuration values)
+!terraform.tfvars
+!environments/*.tfvars
+
 # Ignore override files as they are usually used to override resources locally and so
 # are not checked in
 override.tf

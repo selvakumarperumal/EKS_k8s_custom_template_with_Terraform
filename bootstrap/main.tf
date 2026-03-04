@@ -3,7 +3,7 @@ terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
-      version = "~> 5.0"
+      version = "~> 6.0"
     }
   }
 }
@@ -20,11 +20,11 @@ provider "aws" {
 }
 
 variable "aws_region" {
-  default = "ap-south-1"
+  default = "us-east-1"
 }
 
 variable "project_name" {
-  default = "crud-app"
+  default = "eks-secure-cluster"
 }
 
 data "aws_caller_identity" "current" {}
