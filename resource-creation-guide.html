@@ -1,0 +1,1194 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EKS Infrastructure — Complete Resource Creation Guide</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/dracula.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box
+    }
+
+    body {
+      background: #282a36;
+      color: #f8f8f2;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      line-height: 1.7;
+      padding: 2rem
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto
+    }
+
+    h1 {
+      color: #bd93f9;
+      font-size: 2.4rem;
+      text-align: center;
+      margin-bottom: .5rem;
+      animation: glow 2s ease-in-out infinite alternate
+    }
+
+    @keyframes glow {
+      from {
+        text-shadow: 0 0 5px #bd93f9
+      }
+
+      to {
+        text-shadow: 0 0 20px #bd93f9, 0 0 40px #bd93f966
+      }
+    }
+
+    .subtitle {
+      color: #6272a4;
+      text-align: center;
+      margin-bottom: 1rem;
+      font-size: 1.1rem
+    }
+
+    .progress-bar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      height: 3px;
+      background: linear-gradient(90deg, #bd93f9, #ff79c6, #50fa7b);
+      z-index: 999;
+      transition: width .3s
+    }
+
+    .toc {
+      background: #1e1f29;
+      padding: 1.5rem;
+      border-radius: 8px;
+      margin-bottom: 3rem;
+      border: 1px solid #6272a4
+    }
+
+    .toc h2 {
+      color: #ff79c6;
+      margin-bottom: 1rem;
+      font-size: 1.3rem
+    }
+
+    .toc ul {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: .5rem
+    }
+
+    .toc li a {
+      color: #8be9fd;
+      text-decoration: none;
+      font-size: .95rem;
+      transition: color .2s
+    }
+
+    .toc li a:hover {
+      color: #50fa7b
+    }
+
+    .phase {
+      margin: 3rem 0;
+      padding: 1.5rem;
+      border-left: 4px solid #bd93f9;
+      background: #1e1f29;
+      border-radius: 0 8px 8px 0;
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all .6s ease
+    }
+
+    .phase.visible {
+      opacity: 1;
+      transform: translateY(0)
+    }
+
+    .phase h2 {
+      color: #ff79c6;
+      font-size: 1.5rem;
+      margin-bottom: 1rem
+    }
+
+    .step {
+      margin: 2rem 0;
+      padding: 1.5rem;
+      background: #44475a;
+      border-radius: 8px;
+      border: 1px solid #6272a4;
+      opacity: 0;
+      transform: translateX(-20px);
+      transition: all .5s ease
+    }
+
+    .step.visible {
+      opacity: 1;
+      transform: translateX(0)
+    }
+
+    .step:hover {
+      border-color: #bd93f9;
+      box-shadow: 0 0 15px #bd93f933
+    }
+
+    .step h3 {
+      color: #50fa7b;
+      font-size: 1.15rem;
+      margin-bottom: .8rem
+    }
+
+    .step h3 span {
+      color: #6272a4;
+      font-size: .9rem;
+      font-weight: normal
+    }
+
+    .step .note {
+      color: #f1fa8c;
+      font-size: .9rem;
+      margin-top: .8rem;
+      padding: .5rem .8rem;
+      background: #282a36;
+      border-radius: 4px;
+      border-left: 3px solid #f1fa8c
+    }
+
+    .step .explain {
+      color: #f8f8f2;
+      font-size: .9rem;
+      margin-top: .8rem;
+      padding: .8rem;
+      background: #1e1f29;
+      border-radius: 6px;
+      border-left: 3px solid #8be9fd;
+      line-height: 1.6
+    }
+
+    .step .explain strong {
+      color: #ff79c6
+    }
+
+    .step .explain code {
+      background: #44475a;
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: .85rem
+    }
+
+    pre {
+      background: #282a36 !important;
+      border-radius: 6px;
+      padding: 1rem !important;
+      margin: .8rem 0;
+      overflow-x: auto;
+      border: 1px solid #6272a4
+    }
+
+    code {
+      font-family: 'Fira Code', 'Consolas', monospace;
+      font-size: .85rem
+    }
+
+    .d2-diagram {
+      margin: 1rem 0;
+      min-height: 80px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #282a36;
+      border-radius: 8px;
+      padding: 1rem;
+      border: 1px solid #6272a4;
+      transition: all .8s ease
+    }
+
+    .d2-diagram.loaded {
+      animation: fadeIn .8s ease
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: scale(.95)
+      }
+
+      to {
+        opacity: 1;
+        transform: scale(1)
+      }
+    }
+
+    .d2-diagram.loading {
+      color: #6272a4;
+      font-style: italic
+    }
+
+    .d2-diagram svg {
+      max-width: 100%;
+      height: auto
+    }
+
+    .d2-diagram:hover {
+      border-color: #ff79c6;
+      box-shadow: 0 0 20px #ff79c622
+    }
+
+    @keyframes flowData {
+      to {
+        stroke-dashoffset: -16
+      }
+    }
+
+    .d2-diagram svg path[fill="none"][stroke]:not([stroke="none"]) {
+      stroke-dasharray: 8 8 !important;
+      animation: flowData .8s linear infinite
+    }
+
+    .summary {
+      margin: 3rem 0;
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all .6s ease
+    }
+
+    .summary.visible {
+      opacity: 1;
+      transform: translateY(0)
+    }
+
+    .summary table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .9rem
+    }
+
+    .summary th {
+      background: #bd93f9;
+      color: #282a36;
+      padding: .6rem;
+      text-align: left
+    }
+
+    .summary td {
+      padding: .5rem .6rem;
+      border-bottom: 1px solid #44475a
+    }
+
+    .summary tr:hover {
+      background: #44475a
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: .75rem;
+      font-weight: bold
+    }
+
+    .badge-vpc {
+      background: #50fa7b;
+      color: #282a36
+    }
+
+    .badge-iam {
+      background: #ffb86c;
+      color: #282a36
+    }
+
+    .badge-eks {
+      background: #8be9fd;
+      color: #282a36
+    }
+
+    .badge-sec {
+      background: #ff5555;
+      color: #f8f8f2
+    }
+
+    .badge-sm {
+      background: #ff79c6;
+      color: #282a36
+    }
+
+    .sn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #bd93f9;
+      color: #282a36;
+      font-weight: bold;
+      font-size: .8rem;
+      margin-right: 8px
+    }
+
+    .module-counter {
+      text-align: center;
+      margin: 2rem 0;
+      font-size: 1rem;
+      color: #6272a4
+    }
+
+    .module-counter span {
+      color: #50fa7b;
+      font-weight: bold;
+      font-size: 1.2rem
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="progress-bar" id="progressBar"></div>
+    <h1>🏗️ EKS Infrastructure — Resource Creation Guide</h1>
+    <p class="subtitle">Step-by-step resource creation across all 5 modules with architecture diagrams</p>
+    <p class="module-counter">
+      <span>5</span> Modules · <span>30+</span> Resources · <span>~15 min</span> Total Deploy Time
+    </p>
+
+    <div class="toc">
+      <h2>📑 Module Navigation</h2>
+      <ul>
+        <li><a href="#vpc">🌐 Phase 1: VPC Module</a></li>
+        <li><a href="#iam">🔐 Phase 2: IAM Module</a></li>
+        <li><a href="#eks">⬡ Phase 3: EKS Module</a></li>
+        <li><a href="#secrets">🔑 Phase 4: Secrets Manager</a></li>
+        <li><a href="#security">🛡️ Phase 5: Security Module</a></li>
+      </ul>
+    </div>
+
+    <div id="content"></div>
+
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- QUICK REFERENCE: Text-only steps with descriptions            -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <div class="summary" style="margin-top:4rem">
+      <h2 style="color:#bd93f9;margin-bottom:1.5rem">📋 Quick Reference — All Steps at a Glance</h2>
+
+      <h3 style="color:#50fa7b;margin:1.5rem 0 .8rem">🌐 Phase 1 — VPC Module</h3>
+      <table class="var-table">
+        <thead>
+          <tr>
+            <th style="width:30px">#</th>
+            <th>Step</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>1</td>
+            <td><strong>Create VPC</strong></td>
+            <td>Isolated network (10.0.0.0/16) with DNS support enabled — required for EKS service discovery and API
+              endpoint resolution.</td>
+          </tr>
+          <tr>
+            <td>2</td>
+            <td><strong>Internet Gateway</strong></td>
+            <td>Single entry point for public internet traffic. Attached to VPC, used by public subnets only.</td>
+          </tr>
+          <tr>
+            <td>3</td>
+            <td><strong>Public Subnets (×3)</strong></td>
+            <td>One per AZ for ALB and NAT Gateway placement. Auto-assigns public IPs. Tagged for K8s external load
+              balancers.</td>
+          </tr>
+          <tr>
+            <td>4</td>
+            <td><strong>Private Subnets (×3)</strong></td>
+            <td>One per AZ for EKS worker nodes. No public IPs — all outbound traffic goes through NAT. Tagged for K8s
+              internal LBs.</td>
+          </tr>
+          <tr>
+            <td>5</td>
+            <td><strong>NAT Gateway + EIP</strong></td>
+            <td>Allows private nodes to pull images and make API calls. Single (dev, ~$33/mo) or per-AZ (prod, ~$99/mo)
+              for HA.</td>
+          </tr>
+          <tr>
+            <td>6</td>
+            <td><strong>Route Tables</strong></td>
+            <td>Public RT routes 0.0.0.0/0 → IGW. Private RTs route 0.0.0.0/0 → NAT. Per-AZ private RTs for fault
+              isolation in prod.</td>
+          </tr>
+          <tr>
+            <td>7</td>
+            <td><strong>Network ACLs</strong></td>
+            <td>Stateless subnet-level firewall. Public allows 80/443/ephemeral. Private allows only VPC-internal
+              traffic. Second defense layer.</td>
+          </tr>
+          <tr>
+            <td>8</td>
+            <td><strong>VPC Flow Logs</strong></td>
+            <td>Optional. Captures all network traffic metadata to CloudWatch. Required for PCI DSS / HIPAA compliance.
+              ~$5/month.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 style="color:#ffb86c;margin:1.5rem 0 .8rem">🔐 Phase 2 — IAM Module</h3>
+      <table class="var-table">
+        <thead>
+          <tr>
+            <th style="width:30px">#</th>
+            <th>Step</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>9</td>
+            <td><strong>Cluster IAM Role</strong></td>
+            <td>Trusted by eks.amazonaws.com. Grants AmazonEKSClusterPolicy (manage cluster) + VPCResourceController
+              (create ENIs for pods).</td>
+          </tr>
+          <tr>
+            <td>10</td>
+            <td><strong>Node Group IAM Role</strong></td>
+            <td>Trusted by ec2.amazonaws.com. 3 policies: WorkerNodePolicy (join cluster), CNI Policy (pod networking),
+              ECR ReadOnly (pull images).</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 style="color:#8be9fd;margin:1.5rem 0 .8rem">⬡ Phase 3 — EKS Module</h3>
+      <table class="var-table">
+        <thead>
+          <tr>
+            <th style="width:30px">#</th>
+            <th>Step</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>11</td>
+            <td><strong>KMS Key</strong></td>
+            <td>Envelope encryption for K8s secrets in etcd. Auto-rotates annually. Without this, secrets are only
+              base64-encoded.</td>
+          </tr>
+          <tr>
+            <td>12</td>
+            <td><strong>Security Groups</strong></td>
+            <td>Cluster SG + Node SG with 3 rules: Node→Cluster (443), Cluster→Node (1025-65535), Node↔Node (all ports
+              for pod traffic).</td>
+          </tr>
+          <tr>
+            <td>13</td>
+            <td><strong>EKS Cluster</strong></td>
+            <td>The control plane (~8-10 min). 3 API server replicas across 3 AZs. Dual access (public + private).
+              KMS-encrypted secrets. 5 log types.</td>
+          </tr>
+          <tr>
+            <td>14</td>
+            <td><strong>OIDC Provider (IRSA)</strong></td>
+            <td>Bridges K8s ServiceAccount identity → AWS IAM roles. Allows per-pod IAM permissions instead of shared
+              node-level access.</td>
+          </tr>
+          <tr>
+            <td>15</td>
+            <td><strong>EKS Addons</strong></td>
+            <td>CoreDNS (service discovery), kube-proxy (Service routing via iptables), VPC CNI (assigns real VPC IPs to
+              pods).</td>
+          </tr>
+          <tr>
+            <td>16</td>
+            <td><strong>Launch Templates</strong></td>
+            <td>EC2 config per node group: gp3 encrypted EBS (3000 IOPS), IMDSv2 enforced (blocks SSRF), no public IPs,
+              detailed monitoring optional.</td>
+          </tr>
+          <tr>
+            <td>17</td>
+            <td><strong>Managed Node Groups</strong></td>
+            <td>Actual EC2 workers (~3-5 min). AZ-balanced spread. Supports ON_DEMAND + SPOT. lifecycle ignores
+              desired_size for Cluster Autoscaler.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 style="color:#ff79c6;margin:1.5rem 0 .8rem">🔑 Phase 4 — Secrets Manager Module</h3>
+      <table class="var-table">
+        <thead>
+          <tr>
+            <th style="width:30px">#</th>
+            <th>Step</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>18</td>
+            <td><strong>Dedicated KMS Key</strong></td>
+            <td>Separate from EKS KMS key — key isolation so one compromise doesn't expose both cluster secrets and app
+              secrets.</td>
+          </tr>
+          <tr>
+            <td>19</td>
+            <td><strong>Create Secrets</strong></td>
+            <td>Conditionally creates DB credentials, API keys, and app config in Secrets Manager. Values flow from
+              GitHub Secrets → TF_VAR_* → SM.</td>
+          </tr>
+          <tr>
+            <td>20</td>
+            <td><strong>IAM Read Policy</strong></td>
+            <td>Least-privilege policy: GetSecretValue + KMS Decrypt for only the created secrets. Attach to IRSA roles
+              for pod access.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3 style="color:#ff5555;margin:1.5rem 0 .8rem">🛡️ Phase 5 — Security Module</h3>
+      <table class="var-table">
+        <thead>
+          <tr>
+            <th style="width:30px">#</th>
+            <th>Step</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>21</td>
+            <td><strong>GuardDuty Detector</strong></td>
+            <td>Account-level ML threat detection. Auto-discovers all EKS clusters, VPCs, EC2s — no ARN needed. Detects
+              crypto mining, credential theft, privilege escalation.</td>
+          </tr>
+          <tr>
+            <td>22</td>
+            <td><strong>AWS Config + Rules</strong></td>
+            <td>Continuous configuration compliance. 3 EKS rules: Is logging enabled? Is endpoint private? Are secrets
+              KMS-encrypted? Flags but doesn't auto-remediate.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="summary">
+      <h2 style="color:#bd93f9;margin-bottom:1rem">📊 Complete Resource Summary</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Resource</th>
+            <th>Module</th>
+            <th>Time</th>
+          </tr>
+        </thead>
+        <tbody id="summary-table"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const STEPS = [
+      // ═══════════════════════════════════════════════════════════════════════
+      // PHASE 1: VPC
+      // ═══════════════════════════════════════════════════════════════════════
+      {
+        phase: "🌐 Phase 1 — VPC Module", id: "vpc", steps: [
+          {
+            title: "Create VPC", cat: "vpc", time: "~5s",
+            hcl: `resource "aws_vpc" "main" {
+  cidr_block           = var.vpc_cidr  # e.g., "10.0.0.0/16"
+  enable_dns_hostnames = true          # Required for EKS
+  enable_dns_support   = true          # Required for EKS
+  tags = { Name = "\${var.name_prefix}-vpc" }
+}`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+vpc: "🌐 VPC\\n10.0.0.0/16" { shape: rectangle; style.fill: "#282a36"; style.stroke: "#50fa7b"; style.stroke-width: 2 }
+dns: "DNS Support\\n✅ Enabled" { shape: document; style.fill: "#44475a"; style.font-color: "#50fa7b" }
+vpc -> dns: "Required for EKS" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
+            explain: "The VPC is your <strong>isolated private network</strong> in AWS. <code>enable_dns_hostnames</code> and <code>enable_dns_support</code> are <strong>required for EKS</strong> — the control plane uses DNS to resolve API server endpoints and internal service discovery."
+          },
+
+          {
+            title: "Create Internet Gateway", cat: "vpc", time: "~5s",
+            hcl: `resource "aws_internet_gateway" "main" {
+  vpc_id = aws_vpc.main.id
+  tags = { Name = "\${var.name_prefix}-igw" }
+}`,
+            d2: `direction: down
+vars: { d2-config: { theme-id: 200 } }
+inet: "🌍 Internet" { shape: cloud; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+igw: "🚪 Internet Gateway\\n(1 per VPC)" { shape: hexagon; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+vpc: "🌐 VPC" { shape: rectangle; style.fill: "#282a36"; style.stroke: "#50fa7b" }
+inet -> igw: "Public Traffic" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+igw -> vpc { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
+            explain: "The IGW is the <strong>front door</strong> of your VPC. Only <strong>1 per VPC</strong>, highly available across all AZs. Only public subnets route through it."
+          },
+
+          {
+            title: "Create Public Subnets (×3 AZs)", cat: "vpc", time: "~5s",
+            hcl: `resource "aws_subnet" "public" {
+  count                   = 3  # One per AZ
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = var.public_subnets[count.index]  # 10.0.101-103.0/24
+  availability_zone       = var.azs[count.index]
+  map_public_ip_on_launch = true  # Auto-assign public IPs
+}`,
+            explain: "3 public subnets across 3 AZs for <strong>ALB placement</strong> and <strong>NAT Gateway</strong>. Tagged with <code>kubernetes.io/role/elb = 1</code> so the AWS LB Controller auto-discovers them."
+          },
+
+          {
+            title: "Create Private Subnets (×3 AZs)", cat: "vpc", time: "~5s",
+            hcl: `resource "aws_subnet" "private" {
+  count             = 3  # One per AZ
+  vpc_id            = aws_vpc.main.id
+  cidr_block        = var.private_subnets[count.index]  # 10.0.1-3.0/24
+  availability_zone = var.azs[count.index]
+  # NO public IP assignment — nodes stay private
+}`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+azs: "3 Availability Zones" {
+  style.fill: "#1e1f29"; style.stroke: "#6272a4"
+  a: "AZ-A\\n10.0.1.0/24" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+  b: "AZ-B\\n10.0.2.0/24" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+  c: "AZ-C\\n10.0.3.0/24" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+}
+nodes: "⬡ EKS Nodes" { shape: hexagon; style.fill: "#bd93f9"; style.font-color: "#282a36" }
+azs.a -> nodes { style.stroke: "#bd93f9"; style.stroke-dash: 5 }
+azs.b -> nodes { style.stroke: "#bd93f9"; style.stroke-dash: 5 }
+azs.c -> nodes { style.stroke: "#bd93f9"; style.stroke-dash: 5 }`,
+            explain: "EKS worker nodes live here — <strong>no public IPs</strong>, no direct internet access. Tagged with <code>kubernetes.io/role/internal-elb = 1</code> for internal load balancers."
+          },
+
+          {
+            title: "Create NAT Gateway + Elastic IP", cat: "vpc", time: "~90s",
+            hcl: `resource "aws_eip" "nat" {
+  count  = var.single_nat_gateway ? 1 : length(var.public_subnets)
+  domain = "vpc"
+}
+
+resource "aws_nat_gateway" "main" {
+  count         = var.enable_nat_gateway ? (var.single_nat_gateway ? 1 : 3) : 0
+  allocation_id = aws_eip.nat[count.index].id
+  subnet_id     = aws_subnet.public[count.index].id  # Lives in PUBLIC subnet
+}`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+priv: "🔒 Private Subnet\\n(EKS Nodes)" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+nat: "NAT Gateway\\n(Public Subnet)" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+inet: "🌍 Internet" { shape: cloud; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+priv -> nat: "Outbound Only" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+nat -> inet: "Via EIP" { style.stroke: "#ffb86c"; style.stroke-dash: 5 }
+inet -> priv: "❌ Blocked" { style.stroke: "#ff5555"; style.stroke-dash: 5 }`,
+            note: "NAT Gateway takes ~90s to create. Single NAT saves ~$66/mo but is a single point of failure.",
+            explain: "NAT lets private nodes make <strong>outbound</strong> connections (pull images, API calls) while <strong>blocking inbound</strong>. <code>single_nat_gateway = true</code> (dev) uses 1 NAT; <code>false</code> (prod) creates 1 per AZ for HA."
+          },
+
+          {
+            title: "Create Route Tables + Associations", cat: "vpc", time: "~5s",
+            hcl: `# Public RT: all traffic → Internet Gateway
+resource "aws_route" "public_internet_gateway" {
+  route_table_id         = aws_route_table.public.id
+  destination_cidr_block = "0.0.0.0/0"
+  gateway_id             = aws_internet_gateway.main.id
+}
+
+# Private RT: all traffic → NAT Gateway
+resource "aws_route" "private_nat_gateway" {
+  route_table_id         = aws_route_table.private[count.index].id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id         = aws_nat_gateway.main[count.index].id
+}`,
+            explain: "<strong>1 public RT</strong> (shared) routes via IGW. <strong>1+ private RTs</strong> route via NAT. In multi-AZ mode, each private subnet gets its own RT pointing to its AZ's NAT for fault isolation."
+          },
+
+          {
+            title: "Create Network ACLs (Public + Private)", cat: "vpc", time: "~5s",
+            hcl: `# Public NACL — allows HTTP/HTTPS/ephemeral ports inbound
+resource "aws_network_acl" "public" {
+  vpc_id     = aws_vpc.main.id
+  subnet_ids = aws_subnet.public[*].id
+  ingress { rule_no=100; protocol="tcp"; action="allow"; cidr_block="0.0.0.0/0"; from_port=443; to_port=443 }
+  ingress { rule_no=200; protocol="tcp"; action="allow"; cidr_block="0.0.0.0/0"; from_port=80;  to_port=80 }
+  ingress { rule_no=300; protocol="tcp"; action="allow"; cidr_block="0.0.0.0/0"; from_port=1024; to_port=65535 }
+}
+
+# Private NACL — only VPC traffic + ephemeral responses
+resource "aws_network_acl" "private" {
+  vpc_id     = aws_vpc.main.id
+  subnet_ids = aws_subnet.private[*].id
+  ingress { rule_no=100; protocol="-1"; action="allow"; cidr_block=var.vpc_cidr; from_port=0; to_port=0 }
+}`,
+            note: "NACLs are STATELESS — must allow both inbound AND outbound. Security groups are STATEFUL.",
+            explain: "NACLs are a <strong>second layer of defense</strong> at the subnet level. Public NACL allows HTTPS + HTTP + ephemeral ports. Private NACL restricts to VPC-internal traffic only."
+          },
+
+          {
+            title: "VPC Flow Logs (Optional)", cat: "vpc", time: "~10s",
+            hcl: `resource "aws_flow_log" "main" {
+  count        = var.enable_flow_logs ? 1 : 0
+  vpc_id       = aws_vpc.main.id
+  traffic_type = "ALL"  # ACCEPT + REJECT
+  iam_role_arn    = aws_iam_role.flow_log[0].arn
+  log_destination = aws_cloudwatch_log_group.flow_log[0].arn
+}`,
+            explain: "Captures <strong>all network traffic metadata</strong> (source/dest IP, ports, action). Essential for <strong>security auditing</strong> and <strong>compliance</strong> (PCI DSS, HIPAA). Cost: ~$5/month."
+          },
+        ]
+      },
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // PHASE 2: IAM
+      // ═══════════════════════════════════════════════════════════════════════
+      {
+        phase: "🔐 Phase 2 — IAM Module", id: "iam", steps: [
+          {
+            title: "Create EKS Cluster IAM Role", cat: "iam", time: "~5s",
+            hcl: `resource "aws_iam_role" "cluster" {
+  name_prefix = "\${var.cluster_name}-cluster-"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{ Action = "sts:AssumeRole"; Effect = "Allow"
+      Principal = { Service = "eks.amazonaws.com" }  # Only EKS can assume
+    }]
+  })
+}
+
+# Attach AWS-managed policies
+resource "aws_iam_role_policy_attachment" "cluster_policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+  role       = aws_iam_role.cluster.name
+}
+resource "aws_iam_role_policy_attachment" "vpc_resource_controller" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
+  role       = aws_iam_role.cluster.name
+}`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+eks: "EKS Service\\n(eks.amazonaws.com)" { shape: hexagon; style.fill: "#bd93f9"; style.font-color: "#282a36" }
+role: "🔐 Cluster IAM Role" { style.fill: "#282a36"; style.stroke: "#ffb86c"; style.stroke-width: 2 }
+p1: "AmazonEKSClusterPolicy" { shape: document; style.fill: "#44475a"; style.font-color: "#50fa7b" }
+p2: "VPCResourceController" { shape: document; style.fill: "#44475a"; style.font-color: "#50fa7b" }
+eks -> role: "sts:AssumeRole" { style.stroke: "#ffb86c"; style.stroke-dash: 5 }
+role -> p1 { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+role -> p2 { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
+            explain: "The <strong>trust policy</strong> says WHO (eks.amazonaws.com) can wear this badge. The <strong>permission policies</strong> say WHAT the badge unlocks (manage cluster, create ENIs)."
+          },
+
+          {
+            title: "Create Node Group IAM Role", cat: "iam", time: "~5s",
+            hcl: `resource "aws_iam_role" "node_group" {
+  name_prefix = "\${var.cluster_name}-node-"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{ Action = "sts:AssumeRole"; Effect = "Allow"
+      Principal = { Service = "ec2.amazonaws.com" }  # EC2 instances assume this
+    }]
+  })
+}
+
+# 3 policies: join cluster + network pods + pull images
+resource "aws_iam_role_policy_attachment" "worker"   { policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"; role = aws_iam_role.node_group.name }
+resource "aws_iam_role_policy_attachment" "cni"      { policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy";      role = aws_iam_role.node_group.name }
+resource "aws_iam_role_policy_attachment" "registry"  { policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"; role = aws_iam_role.node_group.name }`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+ec2: "EC2 Instance\\n(Worker Node)" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+role: "🔐 Node IAM Role" { style.fill: "#282a36"; style.stroke: "#ffb86c"; style.stroke-width: 2 }
+perms: "Permissions" { style.fill: "#1e1f29"; style.stroke: "#6272a4"
+  p1: "WorkerNodePolicy\\n(Join cluster)" { style.fill: "#44475a"; style.font-color: "#50fa7b" }
+  p2: "CNI Policy\\n(Pod networking)" { style.fill: "#44475a"; style.font-color: "#50fa7b" }
+  p3: "ECR ReadOnly\\n(Pull images)" { style.fill: "#44475a"; style.font-color: "#50fa7b" }
+}
+ec2 -> role: "sts:AssumeRole" { style.stroke: "#ffb86c"; style.stroke-dash: 5 }
+role -> perms.p1 { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+role -> perms.p2 { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+role -> perms.p3 { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
+            explain: "EC2 worker nodes need 3 policies: <strong>WorkerNodePolicy</strong> (register with cluster), <strong>CNI Policy</strong> (assign VPC IPs to pods), <strong>ECR ReadOnly</strong> (pull container images). Least privilege — read-only for ECR, no image pushing."
+          },
+        ]
+      },
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // PHASE 3: EKS
+      // ═══════════════════════════════════════════════════════════════════════
+      {
+        phase: "⬡ Phase 3 — EKS Module", id: "eks", steps: [
+          {
+            title: "Create KMS Key for Secrets Encryption", cat: "eks", time: "~5s",
+            hcl: `resource "aws_kms_key" "eks" {
+  description             = "KMS key for EKS cluster encryption"
+  deletion_window_in_days = 7
+  enable_key_rotation     = true  # Auto-rotate annually
+}
+resource "aws_kms_alias" "eks" {
+  name          = "alias/\${var.cluster_name}-eks"
+  target_key_id = aws_kms_key.eks.key_id
+}`,
+            explain: "<strong>Envelope encryption</strong> for K8s secrets in etcd. Without this, secrets are just base64-encoded (NOT encrypted). KMS encrypts the Data Encryption Key (DEK), which encrypts the actual secret."
+          },
+
+          {
+            title: "Create Security Groups (Cluster + Node)", cat: "eks", time: "~5s",
+            hcl: `resource "aws_security_group" "cluster" {
+  name_prefix = "\${var.cluster_name}-cluster-sg-"
+  vpc_id      = var.vpc_id
+  egress { from_port=0; to_port=0; protocol="-1"; cidr_blocks=["0.0.0.0/0"] }
+}
+resource "aws_security_group" "node" {
+  name_prefix = "\${var.cluster_name}-node-sg-"
+  vpc_id      = var.vpc_id
+  egress { from_port=0; to_port=0; protocol="-1"; cidr_blocks=["0.0.0.0/0"] }
+}
+
+# 3 Rules: Node→Cluster(443), Cluster→Node(1025-65535), Node↔Node(all)
+resource "aws_security_group_rule" "node_to_cluster" {
+  type=ingress; from_port=443; to_port=443; protocol="tcp"
+  security_group_id=cluster.id; source_security_group_id=node.id
+}`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+cluster: "Cluster SG\\n(API Server)" { shape: hexagon; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+node: "Node SG\\n(Workers)" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+node -> cluster: "HTTPS/443\\n(kubelet → API)" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+cluster -> node: "1025-65535\\n(exec, logs)" { style.stroke: "#8be9fd"; style.stroke-dash: 5 }
+node -> node: "All ports\\n(pod-to-pod)" { style.stroke: "#ffb86c"; style.stroke-dash: 5 }`,
+            explain: "3 traffic flows: <strong>Nodes→Cluster</strong> (kubelet reports to API on 443), <strong>Cluster→Nodes</strong> (kubectl exec/logs on high ports), <strong>Node↔Node</strong> (pod-to-pod communication)."
+          },
+
+          {
+            title: "Create EKS Cluster", cat: "eks", time: "~8-10min",
+            hcl: `resource "aws_eks_cluster" "main" {
+  name     = var.cluster_name
+  version  = var.kubernetes_version  # e.g., "1.31"
+  role_arn = var.cluster_role_arn
+
+  vpc_config {
+    subnet_ids              = var.subnet_ids       # Private subnets
+    endpoint_public_access  = true                 # Accessible from internet
+    endpoint_private_access = true                 # Accessible from VPC
+    security_group_ids      = [aws_security_group.cluster.id]
+  }
+  access_config {
+    authentication_mode = "API_AND_CONFIG_MAP"
+    bootstrap_cluster_creator_admin_permissions = true
+  }
+  encryption_config {
+    provider { key_arn = aws_kms_key.eks.arn }
+    resources = ["secrets"]
+  }
+  enabled_cluster_log_types = var.enable_cluster_logging ?
+    ["api","audit","authenticator","controllerManager","scheduler"] : []
+}`,
+            d2: `direction: down
+vars: { d2-config: { theme-id: 200 } }
+cp: "⬡ EKS Control Plane" {
+  style.fill: "#282a36"; style.stroke: "#8be9fd"; style.stroke-width: 2
+  api: "K8s API Server\\n(3 replicas, 3 AZs)" { shape: hexagon; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+  etcd: "etcd\\n(encrypted)" { shape: cylinder; style.fill: "#bd93f9"; style.font-color: "#282a36" }
+  api -> etcd { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+}
+kms: "🔐 KMS Key" { shape: document; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+cp.etcd -> kms: "Envelope Encryption" { style.stroke: "#ffb86c"; style.stroke-dash: 5 }`,
+            note: "This is the LONGEST step (~8-10 min). AWS provisions 3 API server replicas across 3 AZs.",
+            explain: "AWS fully manages the control plane: <strong>API server</strong>, <strong>etcd</strong>, <strong>controllers</strong>, <strong>scheduler</strong>. You don't get SSH access to control plane nodes. <code>access_config</code> uses the modern <strong>EKS Access Entries</strong> API alongside the legacy aws-auth ConfigMap."
+          },
+
+          {
+            title: "Create OIDC Provider (IRSA)", cat: "eks", time: "~5s",
+            hcl: `data "tls_certificate" "cluster" {
+  url = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
+resource "aws_iam_openid_connect_provider" "cluster" {
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.cluster[0].certificates[0].sha1_fingerprint]
+  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}`,
+            explain: "IRSA lets each pod assume its own IAM role via a <strong>ServiceAccount annotation</strong>. Without IRSA, all pods on a node share the node's IAM role — a security risk. The OIDC provider bridges K8s identity → AWS IAM identity."
+          },
+
+          {
+            title: "Install EKS Addons (CoreDNS, kube-proxy, VPC CNI)", cat: "eks", time: "~30s",
+            hcl: `resource "aws_eks_addon" "coredns" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "coredns"          # DNS for service discovery
+  depends_on   = [aws_eks_node_group.main]  # Needs nodes first
+}
+resource "aws_eks_addon" "kube_proxy" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "kube-proxy"       # iptables/IPVS rules for Services
+}
+resource "aws_eks_addon" "vpc_cni" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "vpc-cni"          # Assigns VPC IPs to pods
+}`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+addons: "EKS Addons" { style.fill: "#1e1f29"; style.stroke: "#8be9fd"
+  dns: "CoreDNS\\n(Service Discovery)" { shape: hexagon; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+  proxy: "kube-proxy\\n(Service Routing)" { shape: hexagon; style.fill: "#ffb86c"; style.font-color: "#282a36" }
+  cni: "VPC CNI\\n(Pod Networking)" { shape: hexagon; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+}`,
+            explain: "3 essential addons: <strong>CoreDNS</strong> resolves service names to IPs, <strong>kube-proxy</strong> implements Service routing rules, <strong>VPC CNI</strong> assigns real VPC IPs to pods (no overlay network)."
+          },
+
+          {
+            title: "Create Launch Templates", cat: "eks", time: "~5s",
+            hcl: `resource "aws_launch_template" "node" {
+  for_each       = var.node_groups
+  name_prefix    = "\${var.cluster_name}-\${each.key}-"
+  ebs_optimized  = true
+
+  block_device_mappings {
+    device_name = "/dev/xvda"
+    ebs { volume_type="gp3"; iops=3000; encrypted=true; delete_on_termination=true }
+  }
+  metadata_options {
+    http_tokens                 = "required"  # IMDSv2 ONLY — prevents SSRF attacks
+    http_put_response_hop_limit = 2
+  }
+  network_interfaces {
+    associate_public_ip_address = false  # No public IPs on nodes
+  }
+}`,
+            note: "IMDSv2 enforcement prevents SSRF credential theft (like the 2019 Capital One breach).",
+            explain: "Launch templates define EC2 config: <strong>gp3 encrypted EBS</strong> (3000 IOPS), <strong>IMDSv2 enforced</strong> (blocks SSRF), <strong>no public IPs</strong>. One template per node group."
+          },
+
+          {
+            title: "Create Managed Node Groups", cat: "eks", time: "~3-5min",
+            hcl: `resource "aws_eks_node_group" "main" {
+  for_each        = var.node_groups
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = each.key           # "general" or "spot"
+  node_role_arn   = var.node_role_arn
+  subnet_ids      = var.subnet_ids     # Spread across 3 AZs
+
+  scaling_config {
+    desired_size = each.value.desired_size
+    min_size     = each.value.min_size
+    max_size     = each.value.max_size
+  }
+  instance_types = each.value.instance_types
+  capacity_type  = lookup(each.value, "capacity_type", "ON_DEMAND")
+
+  launch_template {
+    id      = aws_launch_template.node[each.key].id
+    version = aws_launch_template.node[each.key].latest_version
+  }
+
+  lifecycle { ignore_changes = [scaling_config[0].desired_size] }
+}`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+asg: "Auto Scaling Group\\n(AZ-Balanced Spread)" { style.fill: "#282a36"; style.stroke: "#8be9fd"; style.stroke-width: 2
+  a: "AZ-A: Node 1" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+  b: "AZ-B: Node 2" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+  c: "AZ-C: Node 3" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+}
+cluster: "⬡ EKS Cluster" { shape: hexagon; style.fill: "#8be9fd"; style.font-color: "#282a36" }
+asg.a -> cluster: "Join" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+asg.b -> cluster { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+asg.c -> cluster { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
+            note: "lifecycle { ignore_changes = [desired_size] } prevents Terraform from fighting the Cluster Autoscaler.",
+            explain: "Nodes are distributed across 3 AZs via <strong>AZ-balanced spread</strong>. <code>desired_size=3</code> → 1 per AZ. The Autoscaler adjusts <code>desired_size</code> at runtime — <code>ignore_changes</code> prevents Terraform from resetting it."
+          },
+        ]
+      },
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // PHASE 4: SECRETS MANAGER
+      // ═══════════════════════════════════════════════════════════════════════
+      {
+        phase: "🔑 Phase 4 — Secrets Manager Module", id: "secrets", steps: [
+          {
+            title: "Create Dedicated KMS Key", cat: "sm", time: "~5s",
+            hcl: `resource "aws_kms_key" "secrets" {
+  count = var.create_db_secret || var.create_api_secret ||
+          var.create_app_config_secret ? 1 : 0
+  description         = "KMS key for Secrets Manager encryption"
+  enable_key_rotation = true
+}`,
+            explain: "A <strong>separate KMS key</strong> from the EKS key — key separation means if one is compromised, the other secrets remain safe."
+          },
+
+          {
+            title: "Create Secrets (DB, API, App Config)", cat: "sm", time: "~5s",
+            hcl: `# Database credentials — only if create_db_secret = true
+resource "aws_secretsmanager_secret" "db_credentials" {
+  count      = var.create_db_secret ? 1 : 0
+  name       = "\${var.name_prefix}-db-credentials"
+  kms_key_id = aws_kms_key.secrets[0].id
+}
+resource "aws_secretsmanager_secret_version" "db_credentials" {
+  count     = var.create_db_secret ? 1 : 0
+  secret_id = aws_secretsmanager_secret.db_credentials[0].id
+  secret_string = jsonencode({
+    username = var.db_username
+    password = var.db_password
+    engine   = var.db_engine
+    host     = var.db_host
+  })
+}`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+gh: "GitHub Secrets\\n(TF_VAR_*)" { shape: document; style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+tf: "Terraform\\n(auto-maps)" { shape: hexagon; style.fill: "#bd93f9"; style.font-color: "#282a36" }
+sm: "AWS Secrets Manager" { style.fill: "#282a36"; style.stroke: "#ff79c6"; style.stroke-width: 2
+  db: "DB Credentials" { style.fill: "#44475a"; style.font-color: "#50fa7b" }
+  api: "API Keys" { style.fill: "#44475a"; style.font-color: "#50fa7b" }
+  app: "App Config" { style.fill: "#44475a"; style.font-color: "#50fa7b" }
+}
+gh -> tf: "TF_VAR_db_password" { style.stroke: "#f8f8f2"; style.stroke-dash: 5 }
+tf -> sm.db: "var.db_password" { style.stroke: "#ff79c6"; style.stroke-dash: 5 }`,
+            note: "Secret values come from GitHub Secrets as TF_VAR_* environment variables — never stored in code.",
+            explain: "Each secret is <strong>conditionally created</strong> via <code>count</code>. Values flow: <strong>GitHub Secrets</strong> → <code>TF_VAR_*</code> env vars → Terraform variables → Secrets Manager. The actual passwords never touch files."
+          },
+
+          {
+            title: "Create Least-Privilege IAM Policy", cat: "sm", time: "~5s",
+            hcl: `resource "aws_iam_policy" "read_secrets" {
+  count = var.create_db_secret || var.create_api_secret ||
+          var.create_app_config_secret ? 1 : 0
+  policy = jsonencode({
+    Statement = [{
+      Effect = "Allow"
+      Action = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+      Resource = concat(
+        var.create_db_secret  ? [aws_secretsmanager_secret.db_credentials[0].arn] : [],
+        var.create_api_secret ? [aws_secretsmanager_secret.api_keys[0].arn] : []
+      )
+    },{
+      Effect   = "Allow"
+      Action   = ["kms:Decrypt", "kms:DescribeKey"]
+      Resource = [aws_kms_key.secrets[0].arn]
+    }]
+  })
+}`,
+            explain: "<strong>Read-only</strong> access to only the secrets we created — not all secrets in the account. Also grants <code>kms:Decrypt</code> because secrets are KMS-encrypted. Attach this to IRSA roles for pods that need secret access."
+          },
+        ]
+      },
+
+      // ═══════════════════════════════════════════════════════════════════════
+      // PHASE 5: SECURITY
+      // ═══════════════════════════════════════════════════════════════════════
+      {
+        phase: "🛡️ Phase 5 — Security Module", id: "security", steps: [
+          {
+            title: "Enable GuardDuty Detector", cat: "sec", time: "~15s",
+            hcl: `resource "aws_guardduty_detector" "main" {
+  count  = var.enable_guardduty ? 1 : 0
+  enable = true
+  finding_publishing_frequency = "FIFTEEN_MINUTES"
+}
+
+# Enable EKS-specific features
+resource "aws_guardduty_detector_feature" "eks_audit_logs" {
+  detector_id = aws_guardduty_detector.main[0].id
+  name        = "EKS_AUDIT_LOGS"        # K8s API audit analysis
+  status      = "ENABLED"
+}
+resource "aws_guardduty_detector_feature" "eks_runtime" {
+  detector_id = aws_guardduty_detector.main[0].id
+  name        = "EKS_RUNTIME_MONITORING" # OS-level threat detection
+  status      = "ENABLED"
+}
+resource "aws_guardduty_detector_feature" "malware" {
+  detector_id = aws_guardduty_detector.main[0].id
+  name        = "EBS_MALWARE_PROTECTION" # On-demand malware scanning
+  status      = "ENABLED"
+}`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+gd: "🛡️ GuardDuty\\n(Account-Level)" { shape: hexagon; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
+auto: "Auto-Discovers" { style.fill: "#1e1f29"; style.stroke: "#6272a4"
+  eks: "All EKS Clusters" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+  vpc: "All VPCs" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+  ec2: "All EC2" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+}
+gd -> auto.eks: "No ARN needed" { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+gd -> auto.vpc { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+gd -> auto.ec2 { style.stroke: "#50fa7b"; style.stroke-dash: 5 }`,
+            note: "GuardDuty is account-level — it auto-discovers ALL EKS clusters, VPCs, and EC2 instances. No cluster ARN needed.",
+            explain: "GuardDuty uses <strong>ML and threat intelligence</strong> to detect: crypto mining, compromised credentials, privilege escalation, unauthorized API calls. It's an <strong>account-level</strong> service — no need to pass cluster ARNs. It reads data via <strong>AWS internal APIs</strong>."
+          },
+
+          {
+            title: "Create AWS Config Recorder + Rules", cat: "sec", time: "~15s",
+            hcl: `resource "aws_config_configuration_recorder" "main" {
+  count    = var.enable_config ? 1 : 0
+  role_arn = aws_iam_role.config[0].arn
+  recording_group { all_supported = true }
+}
+
+# 3 EKS compliance rules
+resource "aws_config_config_rule" "eks_logging"    { source { owner="AWS"; source_identifier="EKS_CLUSTER_LOGGING_ENABLED" } }
+resource "aws_config_config_rule" "eks_private"    { source { owner="AWS"; source_identifier="EKS_ENDPOINT_NO_PUBLIC_ACCESS" } }
+resource "aws_config_config_rule" "eks_encrypted"  { source { owner="AWS"; source_identifier="EKS_SECRETS_ENCRYPTED" } }`,
+            d2: `direction: right
+vars: { d2-config: { theme-id: 200 } }
+config: "⚙️ AWS Config" { shape: hexagon; style.fill: "#bd93f9"; style.font-color: "#282a36" }
+rules: "Compliance Rules" { style.fill: "#1e1f29"; style.stroke: "#6272a4"
+  r1: "Logging Enabled?" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+  r2: "Endpoint Private?" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+  r3: "Secrets Encrypted?" { style.fill: "#44475a"; style.font-color: "#f8f8f2" }
+}
+pass: "✅ COMPLIANT" { shape: callout; style.fill: "#50fa7b"; style.font-color: "#282a36" }
+fail: "❌ NON_COMPLIANT" { shape: callout; style.fill: "#ff5555"; style.font-color: "#f8f8f2" }
+config -> rules { style.stroke: "#bd93f9"; style.stroke-dash: 5 }
+rules -> pass { style.stroke: "#50fa7b"; style.stroke-dash: 5 }
+rules -> fail { style.stroke: "#ff5555"; style.stroke-dash: 5 }`,
+            explain: "Config continuously <strong>snapshots resource state</strong> and evaluates against rules. 3 EKS checks: <strong>Is logging on?</strong> <strong>Is API private?</strong> <strong>Are secrets KMS-encrypted?</strong> Non-compliant resources are flagged but <strong>not auto-remediated</strong>."
+          },
+        ]
+      },
+    ];
+
+    const BADGES = { vpc: 'badge-vpc', iam: 'badge-iam', eks: 'badge-eks', sec: 'badge-sec', sm: 'badge-sm' };
+    const LABEL = { vpc: 'VPC', iam: 'IAM', eks: 'EKS', sec: 'Security', sm: 'Secrets' };
+    let html = '', n = 0, rows = '';
+    STEPS.forEach(p => {
+      html += `<div class="phase" id="${p.id}"><h2>${p.phase}</h2>`;
+      p.steps.forEach(s => {
+        n++;
+        html += `<div class="step"><h3><span class="sn">${n}</span>${s.title} <span><span class="badge ${BADGES[s.cat]}">${LABEL[s.cat]}</span> ${s.time}</span></h3>`;
+        html += `<pre><code class="language-hcl">${esc(s.hcl)}</code></pre>`;
+        if (s.d2) html += `<div class="d2-diagram loading" data-d2="${btoa(unescape(encodeURIComponent(s.d2)))}">Loading diagram...</div>`;
+        if (s.explain) html += `<div class="explain">${s.explain}</div>`;
+        if (s.note) html += `<div class="note">💡 ${s.note}</div>`;
+        html += `</div>`;
+        rows += `<tr><td>${n}</td><td>${s.title}</td><td><span class="badge ${BADGES[s.cat]}">${LABEL[s.cat]}</span></td><td>${s.time}</td></tr>`;
+      });
+      html += `</div>`;
+    });
+    rows += `<tr style="color:#ff79c6;font-weight:bold"><td></td><td><strong>Total: ${n} resource steps</strong></td><td></td><td><strong>~15 min</strong></td></tr>`;
+
+    document.getElementById('content').innerHTML = html;
+    document.getElementById('summary-table').innerHTML = rows;
+
+    function esc(s) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;') }
+    hljs.highlightAll();
+
+    document.querySelectorAll('.d2-diagram[data-d2]').forEach(el => {
+      const src = decodeURIComponent(escape(atob(el.dataset.d2)));
+      fetch('https://kroki.io/d2/svg', { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body: src })
+        .then(r => { if (!r.ok) throw new Error(r.status); return r.text() })
+        .then(svg => { el.innerHTML = svg; el.classList.remove('loading'); el.classList.add('loaded') })
+        .catch(e => { el.innerHTML = `<span style="color:#ff5555">Diagram: ${e.message}</span>`; el.classList.remove('loading') });
+    });
+
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach((e, i) => { if (e.isIntersecting) { setTimeout(() => e.target.classList.add('visible'), i * 100); obs.unobserve(e.target) } })
+    }, { threshold: 0.1 });
+    document.querySelectorAll('.phase,.step,.summary').forEach(el => obs.observe(el));
+    window.addEventListener('scroll', () => {
+      const h = document.documentElement;
+      document.getElementById('progressBar').style.width = (h.scrollTop / (h.scrollHeight - h.clientHeight)) * 100 + '%';
+    });
+  </script>
+</body>
+
+</html>
