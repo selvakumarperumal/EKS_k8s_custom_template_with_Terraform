@@ -35,9 +35,7 @@ node_groups = {
   }
 }
 
-# Secrets Manager — Enable which secret types to create.
-# The actual secret VALUES (passwords, keys) come from GitHub Secrets
-# as TF_VAR_* environment variables — NOT from this file.
-create_db_secret         = true  # Creates DB credentials secret in Secrets Manager
-create_api_secret        = false # Set true if you need API key storage
-create_app_config_secret = false # Set true if you need app config storage
+# Secrets Manager — Enable API key secret creation.
+# The actual secret VALUE (api_key) comes from GitHub Secrets
+# as TF_VAR_api_key environment variable — NOT from this file.
+create_api_secret = false # Set true if you need API key storage

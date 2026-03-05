@@ -631,7 +631,7 @@ resource "aws_iam_role_policy" "flow_log" {
 resource "aws_cloudwatch_log_group" "flow_log" {
   count             = var.enable_flow_logs ? 1 : 0
   name              = "/aws/vpc/${var.name_prefix}/flow-logs"
-  retention_in_days = 30 # Keep logs for 30 days (adjust per compliance needs)
+  retention_in_days = var.flow_log_retention_days # Configurable: 14 (dev), 30 (prod)
 
   tags = merge(
     var.tags,

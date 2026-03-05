@@ -86,7 +86,7 @@ resource "aws_guardduty_detector" "main" {
   # Note: NEW findings are always published immediately.
   # This setting only affects UPDATES to existing findings.
   # ---------------------------------------------------------------------------
-  finding_publishing_frequency = "FIFTEEN_MINUTES"
+  finding_publishing_frequency = var.guardduty_finding_frequency
 
   tags = merge(
     var.tags,

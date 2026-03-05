@@ -286,10 +286,8 @@ module "eks" {
 # =============================================================================
 # MODULE: SECRETS MANAGER (Optional)
 # =============================================================================
-# Creates AWS Secrets Manager secrets for storing sensitive data:
-#   - Database credentials (username, password, host, port)
-#   - API keys and secrets
-#   - Application configuration
+# Stores sensitive data in AWS Secrets Manager with KMS encryption.
+# Currently configured for API key storage.
 #
 # Each secret is encrypted with a dedicated KMS key (not the default AWS key).
 # A least-privilege IAM policy is created for reading the secrets.
@@ -306,25 +304,11 @@ module "secrets_manager" {
 
   name_prefix = var.cluster_name # Secret names will start with the cluster name
 
-  # Toggle which secrets to create (default: all disabled)
-  create_db_secret         = var.create_db_secret
-  create_api_secret        = var.create_api_secret
-  create_app_config_secret = var.create_app_config_secret
+  # Toggle API key secret creation (default: disabled)
+  create_api_secret = var.create_api_secret
 
-  # Database credentials — only used if create_db_secret = true
-  db_username = var.db_username # e.g., "admin"
-  db_password = var.db_password # e.g., "super-secret-password"
-  db_engine   = var.db_engine   # e.g., "postgres"
-  db_host     = var.db_host     # e.g., "mydb.cluster-xxx.us-east-1.rds.amazonaws.com"
-  db_port     = var.db_port     # e.g., 5432
-  db_name     = var.db_name     # e.g., "myapp"
-
-  # API keys — only used if create_api_secret = true
-  api_key    = var.api_key    # e.g., "key-abc123"
-  api_secret = var.api_secret # e.g., "secret-xyz789"
-
-  # App config — only used if create_app_config_secret = true
-  app_config = var.app_config # e.g., { "LOG_LEVEL" = "info" }
+  # API key — only used if create_api_secret = true
+  api_key = var.api_key # e.g., "key-abc123"
 
   tags = {
     Environment = var.environment

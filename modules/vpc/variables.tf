@@ -127,6 +127,15 @@ variable "enable_flow_logs" {
   default     = false
 }
 
+# How many days to retain flow log data in CloudWatch.
+# Lower values save on storage costs. Flow logs can be high-volume in prod.
+# Common values: 7 (dev), 14 (default), 30 (compliance-heavy)
+variable "flow_log_retention_days" {
+  description = "Number of days to retain VPC flow logs in CloudWatch"
+  type        = number
+  default     = 14
+}
+
 
 # =============================================================================
 # COMMON TAGS

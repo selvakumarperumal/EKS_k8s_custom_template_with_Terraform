@@ -15,6 +15,16 @@ variable "enable_guardduty" {
   default     = true
 }
 
+# How often GuardDuty publishes UPDATED findings (new findings are always immediate).
+# "FIFTEEN_MINUTES" — Most responsive (recommended for production)
+# "ONE_HOUR"        — Good balance of responsiveness and cost
+# "SIX_HOURS"       — Lowest processing cost, highest latency
+variable "guardduty_finding_frequency" {
+  description = "GuardDuty finding publishing frequency (FIFTEEN_MINUTES, ONE_HOUR, SIX_HOURS)"
+  type        = string
+  default     = "SIX_HOURS"
+}
+
 # Enable/disable AWS Config for compliance monitoring.
 # Production: always true. Dev: optional.
 variable "enable_config" {

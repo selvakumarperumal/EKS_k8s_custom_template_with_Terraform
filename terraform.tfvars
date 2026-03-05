@@ -15,7 +15,7 @@
 #
 # SECURITY NOTE:
 # This file should NOT contain real passwords or API keys!
-# Use environment variables (TF_VAR_db_password) or a secrets manager instead.
+# Use environment variables (TF_VAR_api_key) or a secrets manager instead.
 # Add this file to .gitignore if it contains any sensitive values.
 ###############################################################################
 
@@ -93,24 +93,8 @@ enable_aws_config = true
 # =============================================================================
 # SECRETS MANAGER (Optional — disabled by default)
 # =============================================================================
-# Uncomment and fill in values to create secrets in AWS Secrets Manager.
-# These secrets can be consumed by pods using External Secrets Operator.
-
-# create_db_secret = true
-# db_username      = "admin"
-# db_password      = "change-me-in-production"
-# db_engine        = "postgres"
-# db_host          = "mydb.cluster-xxx.us-east-1.rds.amazonaws.com"
-# db_port          = 5432
-# db_name          = "myapp"
+# Uncomment and fill in values to create an API key secret in AWS Secrets Manager.
+# The secret can be consumed by pods using External Secrets Operator.
 
 # create_api_secret = true
 # api_key           = "your-api-key"
-# api_secret        = "your-api-secret"
-
-# create_app_config_secret = true
-# app_config = {
-#   LOG_LEVEL    = "info"
-#   FEATURE_FLAG = "true"
-#   APP_ENV      = "production"
-# }

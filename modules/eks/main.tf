@@ -117,8 +117,7 @@ resource "aws_cloudwatch_log_group" "eks" {
   # │ retention (logs kept FOREVER = expensive). We pre-create it to          │
   # │ control retention (30 days) and tags.                                   │
   # └───────────────────────────────────────────────────────────────────────────┘
-  retention_in_days = 30 # Keep logs for 30 days (adjust per compliance needs)
-  # For production: consider 90 days or 1 year for compliance
+  retention_in_days = var.log_retention_in_days # Configurable: 14 (dev), 30 (prod), 90 (compliance)
 
   tags = var.tags
 }

@@ -430,58 +430,13 @@ variable "enable_aws_config" {
 # SECRETS MANAGER CONFIGURATION (Optional)
 # =============================================================================
 # These variables control the optional Secrets Manager module.
-# Set the enable_* variables to `true` to create the corresponding secrets.
-# Only provide credential values when the corresponding secret is enabled.
+# Set create_api_secret to `true` to create the API key secret.
+# Only provide the api_key value when the secret is enabled.
 # =============================================================================
 
-# --- Database Secret ---
-variable "create_db_secret" {
-  description = "Create a Secrets Manager secret for database credentials"
-  type        = bool
-  default     = false
-}
-
-variable "db_username" {
-  description = "Database username (only used when create_db_secret = true)"
-  type        = string
-  default     = ""
-  sensitive   = true # Redacted from terraform plan/apply output
-}
-
-variable "db_password" {
-  description = "Database password (only used when create_db_secret = true)"
-  type        = string
-  default     = ""
-  sensitive   = true # Redacted from terraform plan/apply output
-}
-
-variable "db_engine" {
-  description = "Database engine type (e.g., 'postgres', 'mysql', 'aurora-postgresql')"
-  type        = string
-  default     = "postgres"
-}
-
-variable "db_host" {
-  description = "Database hostname or endpoint"
-  type        = string
-  default     = ""
-}
-
-variable "db_port" {
-  description = "Database port number (PostgreSQL: 5432, MySQL: 3306)"
-  type        = number
-  default     = 5432
-}
-
-variable "db_name" {
-  description = "Database name"
-  type        = string
-  default     = ""
-}
-
-# --- API Secret ---
+# --- API Key Secret ---
 variable "create_api_secret" {
-  description = "Create a Secrets Manager secret for API keys"
+  description = "Create a Secrets Manager secret for the API key"
   type        = bool
   default     = false
 }
@@ -491,25 +446,4 @@ variable "api_key" {
   type        = string
   default     = ""
   sensitive   = true
-}
-
-variable "api_secret" {
-  description = "API secret value (only used when create_api_secret = true)"
-  type        = string
-  default     = ""
-  sensitive   = true
-}
-
-# --- Application Config Secret ---
-variable "create_app_config_secret" {
-  description = "Create a Secrets Manager secret for application configuration"
-  type        = bool
-  default     = false
-}
-
-variable "app_config" {
-  description = "Application config as key-value pairs (stored as JSON in Secrets Manager)"
-  type        = map(string) # Example: { "LOG_LEVEL" = "info", "FEATURE_FLAG" = "true" }
-  default     = {}
-  sensitive   = true # Entire map is treated as sensitive
 }

@@ -199,6 +199,15 @@ variable "enable_cluster_logging" {
   default     = false
 }
 
+# How many days to keep control plane logs in CloudWatch.
+# Lower values save on storage costs. Adjust per compliance needs.
+# Common values: 14 (dev), 30 (prod), 90 (compliance-heavy)
+variable "log_retention_in_days" {
+  description = "Number of days to retain EKS control plane logs in CloudWatch"
+  type        = number
+  default     = 30
+}
+
 # Whether to enable 1-minute (detailed) CloudWatch monitoring on EC2 nodes.
 # When disabled, uses free 5-minute basic monitoring.
 # KUBE-NATIVE ALTERNATIVE: Prometheus + node_exporter + Grafana

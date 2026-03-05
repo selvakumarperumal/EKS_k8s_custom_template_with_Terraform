@@ -2,7 +2,7 @@
 # SECRETS MANAGER MODULE — MAIN CONFIGURATION
 # =============================================================================
 # This module creates AWS Secrets Manager resources for securely storing
-# sensitive data like database credentials, API keys, and app configuration.
+# sensitive data like API keys.
 #
 # WHAT IS AWS SECRETS MANAGER?
 # ────────────────────────────────────────────────────────────────────────
@@ -24,12 +24,10 @@
 #
 # CONDITIONAL CREATION:
 # ────────────────────────────────────────────────────────────────────────
-# Each secret is created ONLY if its corresponding flag is true:
-#   create_db_secret         → Database credentials
-#   create_api_secret        → API keys
-#   create_app_config_secret → Application configuration
+# The secret is created ONLY if its corresponding flag is true:
+#   create_api_secret → API key
 #
-# count = var.create_X_secret ? 1 : 0
+# count = var.create_api_secret ? 1 : 0
 #   → count = 1: resource IS created
 #   → count = 0: resource is NOT created (skipped entirely)
 ###############################################################################
@@ -45,12 +43,10 @@
 #   3. Key rotation schedules might differ
 #   4. If one key is compromised, the other secrets are still safe
 #
-# CONDITIONAL: Only created if at least one secret is enabled.
-# The || (OR) operator means: create if ANY secret is enabled.
+# CONDITIONAL: Only created if the API secret is enabled.
 # =============================================================================
 resource "aws_kms_key" "secrets" {
-  # Create only if at least one secret type is enabled
-  count                   = var.create_db_secret || var.create_api_secret || var.create_app_config_secret ? 1 : 0
+  count                   = var.create_api_secret ? 1 : 0
   description             = "KMS key for Secrets Manager encryption"
   deletion_window_in_days = 7    # 7-day grace period before permanent deletion
   enable_key_rotation     = true # Auto-rotate key material annually
@@ -65,69 +61,22 @@ resource "aws_kms_key" "secrets" {
 
 # Human-friendly alias for the KMS key
 resource "aws_kms_alias" "secrets" {
-  count         = var.create_db_secret || var.create_api_secret || var.create_app_config_secret ? 1 : 0
+  count         = var.create_api_secret ? 1 : 0
   name          = "alias/${var.name_prefix}-secrets"
   target_key_id = aws_kms_key.secrets[0].key_id # [0] because it's a count resource
 }
 
 
 # =============================================================================
-# SECRET: DATABASE CREDENTIALS
+# SECRET: API KEY
 # =============================================================================
-# Stores database connection information as a JSON object.
-# Typical format: { username, password, engine, host, port, dbname }
-#
-# recovery_window_in_days = 7:
-#   After deletion, the secret is RECOVERABLE for 7 days.
-#   This prevents accidental permanent deletion.
-#   Set to 0 for immediate deletion (not recommended for production).
-#
-# kms_key_id: Encrypts the secret with our dedicated KMS key
-#   (not the default AWS-managed key)
-# =============================================================================
-resource "aws_secretsmanager_secret" "db_credentials" {
-  count                   = var.create_db_secret ? 1 : 0 # Only if DB secret enabled
-  name                    = "${var.name_prefix}-db-credentials"
-  description             = "Database credentials for ${var.name_prefix}"
-  kms_key_id              = aws_kms_key.secrets[0].id # Encrypt with our KMS key
-  recovery_window_in_days = 7                         # 7-day recovery window
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.name_prefix}-db-credentials"
-      Type = "database" # Identifies the secret type for filtering
-    }
-  )
-}
-
-# The actual secret VALUE (stored as a JSON string)
-# jsonencode() converts a Terraform map to a JSON string:
-# { "username": "admin", "password": "xxx", "engine": "postgres", ... }
-resource "aws_secretsmanager_secret_version" "db_credentials" {
-  count     = var.create_db_secret ? 1 : 0
-  secret_id = aws_secretsmanager_secret.db_credentials[0].id
-  secret_string = jsonencode({
-    username = var.db_username # Database username
-    password = var.db_password # Database password
-    engine   = var.db_engine   # e.g., "postgres", "mysql"
-    host     = var.db_host     # Database hostname
-    port     = var.db_port     # e.g., 5432
-    dbname   = var.db_name     # Database name
-  })
-}
-
-
-# =============================================================================
-# SECRET: API KEYS
-# =============================================================================
-# Stores API key/secret pairs for external service integration.
+# Stores the API key for external service integration.
 # Examples: Stripe API key, SendGrid key, GitHub token, etc.
 # =============================================================================
 resource "aws_secretsmanager_secret" "api_keys" {
   count                   = var.create_api_secret ? 1 : 0
   name                    = "${var.name_prefix}-api-keys"
-  description             = "API keys for ${var.name_prefix}"
+  description             = "API key for ${var.name_prefix}"
   kms_key_id              = aws_kms_key.secrets[0].id
   recovery_window_in_days = 7
 
@@ -144,42 +93,8 @@ resource "aws_secretsmanager_secret_version" "api_keys" {
   count     = var.create_api_secret ? 1 : 0
   secret_id = aws_secretsmanager_secret.api_keys[0].id
   secret_string = jsonencode({
-    api_key    = var.api_key    # The API key value
-    api_secret = var.api_secret # The API secret value
+    api_key = var.api_key # The API key value
   })
-}
-
-
-# =============================================================================
-# SECRET: APPLICATION CONFIGURATION
-# =============================================================================
-# Stores application configuration as key-value pairs.
-# This is useful for feature flags, environment-specific settings, etc.
-# that you don't want to hardcode in ConfigMaps.
-#
-# var.app_config is a map(string), so jsonencode produces:
-# { "LOG_LEVEL": "info", "FEATURE_FLAG": "true", "APP_ENV": "production" }
-# =============================================================================
-resource "aws_secretsmanager_secret" "app_config" {
-  count                   = var.create_app_config_secret ? 1 : 0
-  name                    = "${var.name_prefix}-app-config"
-  description             = "Application configuration for ${var.name_prefix}"
-  kms_key_id              = aws_kms_key.secrets[0].id
-  recovery_window_in_days = 7
-
-  tags = merge(
-    var.tags,
-    {
-      Name = "${var.name_prefix}-app-config"
-      Type = "application"
-    }
-  )
-}
-
-resource "aws_secretsmanager_secret_version" "app_config" {
-  count         = var.create_app_config_secret ? 1 : 0
-  secret_id     = aws_secretsmanager_secret.app_config[0].id
-  secret_string = jsonencode(var.app_config) # Entire map → JSON string
 }
 
 
@@ -205,7 +120,7 @@ resource "aws_secretsmanager_secret_version" "app_config" {
 #   3. Pods using that ServiceAccount can read the secrets
 # =============================================================================
 resource "aws_iam_policy" "read_secrets" {
-  count       = var.create_db_secret || var.create_api_secret || var.create_app_config_secret ? 1 : 0
+  count       = var.create_api_secret ? 1 : 0
   name_prefix = "${var.name_prefix}-read-secrets-"
   description = "Allow reading secrets from Secrets Manager"
 
@@ -219,12 +134,7 @@ resource "aws_iam_policy" "read_secrets" {
           "secretsmanager:DescribeSecret"  # Get secret metadata
         ]
         # Resource: Only the specific secrets we created (not ALL secrets!)
-        # concat() combines the conditional lists into one list
-        Resource = concat(
-          var.create_db_secret ? [aws_secretsmanager_secret.db_credentials[0].arn] : [],
-          var.create_api_secret ? [aws_secretsmanager_secret.api_keys[0].arn] : [],
-          var.create_app_config_secret ? [aws_secretsmanager_secret.app_config[0].arn] : []
-        )
+        Resource = [aws_secretsmanager_secret.api_keys[0].arn]
       },
       {
         Effect = "Allow"

@@ -158,23 +158,13 @@ output "cloudwatch_log_group_name" {
 # =============================================================================
 # SECRETS MANAGER OUTPUTS (Conditional)
 # =============================================================================
-# These outputs are only meaningful when the corresponding secrets are enabled.
-# If a secret is not created, the value will be an empty string.
+# This output is only meaningful when create_api_secret = true.
+# If the secret is not created, the value will be an empty string.
 # =============================================================================
 
-output "db_secret_arn" {
-  description = "ARN of the database credentials secret in Secrets Manager"
-  value       = module.secrets_manager.db_secret_arn
-}
-
 output "api_secret_arn" {
-  description = "ARN of the API keys secret in Secrets Manager"
+  description = "ARN of the API key secret in Secrets Manager"
   value       = module.secrets_manager.api_secret_arn
-}
-
-output "app_config_secret_arn" {
-  description = "ARN of the application config secret in Secrets Manager"
-  value       = module.secrets_manager.app_config_secret_arn
 }
 
 output "read_secrets_policy_arn" {

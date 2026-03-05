@@ -62,6 +62,22 @@ resource "aws_s3_bucket_public_access_block" "terraform_state" {
   restrict_public_buckets = true
 }
 
+# Expire old state file versions after 90 days to prevent unbounded storage costs.
+# Versioning keeps all previous versions forever without this lifecycle rule.
+# 90 days gives plenty of time to recover from accidental changes.
+resource "aws_s3_bucket_lifecycle_configuration" "terraform_state" {
+  bucket = aws_s3_bucket.terraform_state.id
+
+  rule {
+    id     = "expire-old-versions"
+    status = "Enabled"
+
+    noncurrent_version_expiration {
+      noncurrent_days = 90 # Delete non-current versions after 90 days
+    }
+  }
+}
+
 resource "aws_dynamodb_table" "terraform_locks" {
   name         = "${var.project_name}-tf-locks"
   billing_mode = "PAY_PER_REQUEST"
